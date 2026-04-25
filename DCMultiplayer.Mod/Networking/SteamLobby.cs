@@ -148,6 +148,17 @@ internal static class SteamLobby
         string name = SteamFriends.GetFriendPersonaName(changed);
         Log.Msg($"ChatUpdate  user={name}({changed.m_SteamID})  change={changeFlags}");
         DumpMembers();
+
+        // Host-only: when a peer joins, push the initial snapshot directly to them.
+        // For now snapshot consists of the customer pool; will grow as more
+        // subsystems are wrapped.
+        if (IsHost
+            && changed != SteamUser.GetSteamID()
+            && (changeFlags & EChatMemberStateChange.k_EChatMemberStateChangeEntered) != 0)
+        {
+            try { DCMultiplayer.Replication.CustomerPoolSync.SendTo(changed); }
+            catch (System.Exception ex) { Log.Error($"snapshot send failed: {ex.Message}"); }
+        }
     }
 
     static void OnJoinRequested(GameLobbyJoinRequested_t r)

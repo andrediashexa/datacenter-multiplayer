@@ -22,6 +22,7 @@ public class Mod : MelonMod
         Transport.OnMessage += RemotePlayers.OnIncoming;
         Transport.OnMessage += EconomySync.OnIncoming;
         Transport.OnMessage += EventLog.OnIncoming;
+        Transport.OnMessage += CustomerPoolSync.OnIncoming;
     }
 
     public override void OnSceneWasInitialized(int buildIndex, string sceneName)

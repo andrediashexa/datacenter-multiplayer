@@ -10,6 +10,7 @@ internal static class NetMsg
     public const byte MsgPlayerPose = 0x10;
     public const byte MsgEconomyTick = 0x20;
     public const byte MsgEventText = 0x30;
+    public const byte MsgCustomerPool = 0x40;
 
     // Layout for MsgPlayerPose (21 bytes total):
     //   [0]      byte    type = 0x10
@@ -89,6 +90,33 @@ internal static class NetMsg
         ushort len = BinaryPrimitives.ReadUInt16LittleEndian(buf.Slice(1, 2));
         if (buf.Length < 3 + len) return false;
         text = System.Text.Encoding.UTF8.GetString(buf.Slice(3, len));
+        return true;
+    }
+
+    // Layout for MsgCustomerPool:
+    //   [0]      byte    type = 0x40
+    //   [1..2]   uint16  count of indices
+    //   [3..]    int32 * count (LE) — values from MainGameManager.availableCustomerIndices
+    public static byte[] WriteCustomerPool(System.Collections.Generic.IList<int> indices)
+    {
+        if (indices.Count > ushort.MaxValue) throw new System.ArgumentException("too many indices", nameof(indices));
+        var buf = new byte[3 + indices.Count * 4];
+        buf[0] = MsgCustomerPool;
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(1, 2), (ushort)indices.Count);
+        for (int i = 0; i < indices.Count; i++)
+            BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(3 + i * 4, 4), indices[i]);
+        return buf;
+    }
+
+    public static bool TryReadCustomerPool(ReadOnlySpan<byte> buf, out int[] indices)
+    {
+        indices = null;
+        if (buf.Length < 3 || buf[0] != MsgCustomerPool) return false;
+        ushort count = BinaryPrimitives.ReadUInt16LittleEndian(buf.Slice(1, 2));
+        if (buf.Length < 3 + count * 4) return false;
+        indices = new int[count];
+        for (int i = 0; i < count; i++)
+            indices[i] = BinaryPrimitives.ReadInt32LittleEndian(buf.Slice(3 + i * 4, 4));
         return true;
     }
 }

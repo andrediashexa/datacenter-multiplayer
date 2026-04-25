@@ -75,5 +75,18 @@ internal static class HE_MGM_CustomerChosen
     {
         if (!Authority.IsAuthoritative || !SteamLobby.IsInLobby) return;
         EventLog.Emit($"chose customer card #{_cardID}");
+        CustomerPoolSync.BroadcastCurrent();
+    }
+}
+
+[HarmonyPatch(typeof(Il2Cpp.MainGameManager), nameof(Il2Cpp.MainGameManager.ShuffleAvailableCustomers))]
+internal static class HE_MGM_ShuffleCustomers
+{
+    static void Postfix()
+    {
+        // ShuffleAvailableCustomers itself is blocked on the client by
+        // ClientSuppression, so this postfix only runs on the authoritative peer.
+        if (!Authority.IsAuthoritative || !SteamLobby.IsInLobby) return;
+        CustomerPoolSync.BroadcastCurrent();
     }
 }
