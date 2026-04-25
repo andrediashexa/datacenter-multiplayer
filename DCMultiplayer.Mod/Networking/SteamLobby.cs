@@ -19,6 +19,14 @@ internal static class SteamLobby
     public static bool IsInLobby => Current != CSteamID.Nil;
     public static bool IsHost { get; private set; }
 
+    /// <summary>Set on join when the lobby's advertised version doesn't match
+    /// our build. Banner in HUD reads this.</summary>
+    public static string VersionMismatch { get; private set; }
+
+    /// <summary>Set on join when our local Workshop folder list disagrees
+    /// with the host's. Banner in HUD reads this.</summary>
+    public static string WorkshopMismatch { get; private set; }
+
     static Callback<LobbyCreated_t> _cbCreated;
     static Callback<LobbyEnter_t> _cbEntered;
     static Callback<LobbyChatUpdate_t> _cbChat;
@@ -86,8 +94,11 @@ internal static class SteamLobby
         }
         Current = new CSteamID(r.m_ulSteamIDLobby);
         IsHost = true;
+        VersionMismatch = null;
+        WorkshopMismatch = null;
         SteamMatchmaking.SetLobbyData(Current, "dcmp_version", DCMultiplayer.ModInfo.Version);
         SteamMatchmaking.SetLobbyData(Current, "dcmp_host_name", SteamFriends.GetPersonaName());
+        SteamMatchmaking.SetLobbyData(Current, "dcmp_workshop", WorkshopManifest.Encode(WorkshopManifest.LocalIds()));
         Log.Msg($"Lobby created  id={Current.m_SteamID}  (you are host)");
         DumpMembers();
     }
@@ -96,8 +107,37 @@ internal static class SteamLobby
     {
         Current = new CSteamID(r.m_ulSteamIDLobby);
         IsHost = SteamMatchmaking.GetLobbyOwner(Current) == SteamUser.GetSteamID();
+        VersionMismatch = null;
+        WorkshopMismatch = null;
+
+        string hostVersion = SteamMatchmaking.GetLobbyData(Current, "dcmp_version");
+        string hostName = SteamMatchmaking.GetLobbyData(Current, "dcmp_host_name");
         Log.Msg($"Lobby entered  id={Current.m_SteamID}  asHost={IsHost}");
-        Log.Msg($"  version={SteamMatchmaking.GetLobbyData(Current, "dcmp_version")}  hostName={SteamMatchmaking.GetLobbyData(Current, "dcmp_host_name")}");
+        Log.Msg($"  version={hostVersion}  hostName={hostName}");
+
+        if (!IsHost)
+        {
+            // Compare versions
+            if (!string.IsNullOrEmpty(hostVersion) && hostVersion != DCMultiplayer.ModInfo.Version)
+            {
+                VersionMismatch = $"host={hostVersion} mine={DCMultiplayer.ModInfo.Version}";
+                Log.Warning($"VERSION MISMATCH: {VersionMismatch}");
+            }
+
+            // Compare workshop manifests
+            string hostManifest = SteamMatchmaking.GetLobbyData(Current, "dcmp_workshop");
+            var hostIds = WorkshopManifest.Decode(hostManifest);
+            var mineIds = WorkshopManifest.LocalIds();
+            var (missing, extra) = WorkshopManifest.Diff(hostIds, mineIds);
+            if (missing.Count > 0 || extra.Count > 0)
+            {
+                WorkshopMismatch = $"missing {missing.Count}, extra {extra.Count}";
+                Log.Warning($"WORKSHOP MISMATCH: {WorkshopMismatch}");
+                if (missing.Count > 0) Log.Warning($"  missing here: {string.Join(", ", missing)}");
+                if (extra.Count > 0) Log.Warning($"  extra here:   {string.Join(", ", extra)}");
+            }
+        }
+
         DumpMembers();
     }
 

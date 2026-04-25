@@ -29,6 +29,13 @@ internal static class Transport
     public const byte ChState = 1;
     public const byte ChEvent = 2;
 
+    /// <summary>Debug toggle — Broadcast() also dispatches to local OnMessage
+    /// handlers as if the message arrived from ourselves. Lets us exercise the
+    /// receive path without a real second peer. Receivers that gate on
+    /// Authority.IsClient still won't apply, so use together with F6
+    /// ForceClient when testing client-side behavior.</summary>
+    public static bool DebugLoopback;
+
     public static MelonLogger.Instance Log = new("DC_MP_Net");
 
     public static long LastRxBytes { get; private set; }
@@ -76,6 +83,11 @@ internal static class Transport
 
     public static void Broadcast(byte channel, byte[] payload, int sendFlags = SendReliable)
     {
+        if (DebugLoopback)
+        {
+            try { OnMessage?.Invoke(SteamUser.GetSteamID(), channel, payload); }
+            catch (Exception ex) { Log.Error($"loopback dispatch failed: {ex.Message}"); }
+        }
         if (!SteamLobby.IsInLobby) return;
         var lobby = SteamLobby.Current;
         var me = SteamUser.GetSteamID();
