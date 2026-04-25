@@ -450,20 +450,27 @@ registrados antes do patch.
 
 ---
 
-## 6.5. Estado atual do mod (v0.0.5)
+## 6.5. Estado atual do mod (v0.0.8)
 
 | Camada | Status | Onde |
 |--------|--------|------|
 | MelonLoader 0.7.2 + IL2CPP setup | ✅ funcionando | jogo carrega o mod no startup |
 | Fix `<>O` (LavaGang/MelonLoader#1142) | ✅ embarcado no installer | `Tools/DCInstaller/CecilFix.cs` |
-| Steam Lobby (FriendsOnly, max=4) | ✅ validado com 2 humanos | `Tools/DCMultiplayer.Mod/Networking/SteamLobby.cs` |
-| Transport P2P (`SteamNetworkingMessages`, 3 canais) | ✅ PING/PONG funcionando | `Networking/Transport.cs` |
-| Replicação de transform (capsulas como avatares, 20 Hz) | ✅ spawn confirmado, posição é a do mundo do remoto | `Replication/PlayerSync.cs`, `Replication/RemotePlayers.cs` |
-| Authority gates (suppressão no cliente) | ✅ código pronto, falta validar com 2 peers | `Networking/Authority.cs`, `Patches/ClientSuppression.cs` |
-| Replicação econômica (money/xp/rep, 1 Hz) | ✅ código pronto, falta validar | `Replication/EconomySync.cs` |
-| HUD overlay (canto inferior esquerdo) | ✅ funciona em IMGUI | `UI/Hud.cs` |
-| Hotkeys F6–F12 | ✅ via `UnityEngine.InputSystem.Keyboard.current` | `Mod.cs` |
-| Distribuição (single-file installer + zip) | ✅ embarca DLL + roda fix `<>O` + deploy | `Tools/DCInstaller/`, `Tools/dist/` |
+| Steam Lobby (FriendsOnly, max=4) | ✅ validado com 2 humanos | `Networking/SteamLobby.cs` |
+| Transport P2P (`SteamNetworkingMessages`, 3 canais) | ✅ PING/PONG validado entre 2 humanos | `Networking/Transport.cs` |
+| Replicação de transform (capsulas, 20 Hz, smoothing) | ✅ validado com 2 humanos | `Replication/PlayerSync.cs`, `Replication/RemotePlayers.cs` |
+| Authority gates (suppressão no cliente) | ✅ código pronto + ForceClient toggle pra teste solo | `Networking/Authority.cs`, `Patches/ClientSuppression.cs` |
+| Replicação econômica (money/xp/rep, 1 Hz) | ✅ código pronto, falta validar com cliente real | `Replication/EconomySync.cs` |
+| Cross-peer event log (texto) | ✅ código pronto, falta validar | `Replication/EventLog.cs`, `Patches/HostEvents.cs` |
+| Customer pool sync | ✅ código pronto, snapshot no join + delta on shuffle/choose | `Replication/CustomerPoolSync.cs` |
+| Workshop manifest exchange + mismatch banner | ✅ código pronto | `Networking/WorkshopManifest.cs` |
+| Version mismatch detection | ✅ código pronto | `Networking/SteamLobby.cs` |
+| HUD overlay com snapshot (sem flicker IMGUI) | ✅ corrigido em v0.0.7 | `UI/Hud.cs` |
+| Hotkeys F5–F12 | ✅ via `UnityEngine.InputSystem.Keyboard.current` | `Mod.cs` |
+| Distribuição (single-file installer + zip) | ✅ embarca DLL + roda fix `<>O` + deploy | `DCInstaller/`, `dist/` |
+| **Replicação de entidades** (servidores/cabos/switches) | ❌ próxima fase | — |
+| **Client save suppression** | ❌ próxima fase | — |
+| **Action-intent pipeline** (cliente → host) | ❌ próxima fase | — |
 
 ### Detalhes de IL2CPP relevantes para futuras patches
 
@@ -485,6 +492,7 @@ registrados antes do patch.
 
 | Tecla | Ação |
 |-------|------|
+| F5 | Toggle `Transport.DebugLoopback` (debug — local round-trip dispatch) |
 | F6 | Toggle `Authority.ForceClient` (debug — testar suppressions sozinho) |
 | F7 | Warp local player até primeiro avatar remoto (debug) |
 | F8 | Hospedar lobby Steam |
@@ -493,12 +501,29 @@ registrados antes do patch.
 | F11 | Abrir overlay Steam de convite |
 | F12 | Broadcast de PING (texto) no canal de controle |
 
+### Wire format (canais)
+
+Channel 0 = control (PING/PONG, debug texto).
+Channel 1 = state (poses, ticks econômicos — pode ser unreliable).
+Channel 2 = event (snapshots e mutações discretas — reliable).
+
+| Type byte | Mensagem | Tamanho | Canal típico |
+|-----------|----------|---------|--------------|
+| `0x10` | `PlayerPose` (x,y,z, yaw, pitch) | 21 B | state, unreliable |
+| `0x20` | `EconomyTick` (money, xp, rep) | 13 B | state, unreliable |
+| `0x30` | `EventText` (uint16 len + UTF-8) | 3 + N | event, reliable |
+| `0x40` | `CustomerPool` (uint16 count + Int32[]) | 3 + 4N | event, reliable |
+
 ### Constraint de design importante
 
 Saves do Data Center são single-player. Em multiplayer, cada peer carrega **o próprio save**.
-A v0.0.5 só replica posição/dinheiro entre dois mundos paralelos — para experiência real de
-multiplayer (o cliente vê os servidores/cabos/customers do host) será necessário um
-**snapshot inicial completo** + replicação contínua de eventos discretos (próxima fase).
+A v0.0.8 replica transform, dinheiro e o pool de customers entre dois mundos paralelos. Para
+experiência real (cliente vê os servidores/cabos do host nas posições do host) ainda falta:
+
+- Suprimir o load do save no cliente (cliente entra em mundo vazio).
+- Snapshot inicial completo de servidores/cabos/switches.
+- Replicação contínua de mutações (place/remove/connect/power).
+- Pipeline de intents (cliente → host) para que cliente possa agir.
 
 ## 7. Próximos passos sugeridos (em ordem)
 

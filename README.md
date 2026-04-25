@@ -4,45 +4,58 @@ Unofficial multiplayer mod for **Data Center** (by Waseku, Steam AppID `4170200`
 Built on top of [MelonLoader](https://melonwiki.xyz/) for IL2CPP and the game's
 existing Steamworks.NET integration.
 
-> **Status:** experimental. Lobby + transport + transform/economy replication
-> validated end-to-end with two real Steam users. Discrete-event observability
-> (server power, customer chosen, etc.) works cross-peer. Full entity
-> replication is not implemented yet — see "What works / what doesn't" below.
+> **Status:** experimental, current version `0.0.8`. Lobby + transport +
+> transform/economy/customer-pool replication validated end-to-end with two
+> real Steam users. Workshop manifest mismatch detection works on join.
+> Server / cable / switch placements are not yet replicated — see
+> "What's replicated / what isn't" below.
 
-## What works
+## What's replicated (host → peers)
 
 - **Steam lobby** (FriendsOnly, max 4 members) with create / join / leave /
-  invite-overlay flows — host advertises lobby metadata, peers auto-accept
-  session requests from lobby members.
-- **P2P transport** over `SteamNetworkingMessages` on three channels (control,
-  state, event). Reliable + unreliable send paths, RX/TX stats in HUD.
+  invite-overlay flows. Host advertises lobby metadata (`dcmp_version`,
+  `dcmp_host_name`, `dcmp_workshop`); peers auto-accept session requests
+  from lobby members. Joining client warns when the host's mod version or
+  Workshop subscription set differs from its own (banner in HUD + log).
+- **P2P transport** over `SteamNetworkingMessages` on three channels
+  (control, state, event). Reliable + unreliable send paths, RX/TX stats
+  in HUD. `F5` toggles a debug loopback that also dispatches `Broadcast`
+  to local handlers for solo round-trip testing.
 - **Remote player avatars** — coloured capsule per peer at their world-space
   position, smoothed at 20 Hz. `F7` warps you to the first remote peer.
 - **Authority model** — `Networking/Authority.cs` is the single source of
   truth for "am I the authoritative peer". Harmony patches in
-  `Patches/ClientSuppression.cs` block AutoSave, ShuffleAvailableCustomers,
-  and Player money/XP/reputation updates on non-host peers so the simulation
-  can't run in parallel. `F6` toggles `ForceClient` for solo testing.
-- **Economy sync** — host broadcasts `(money, xp, reputation)` at 1 Hz, client
-  writes the values directly. Combined with the suppression patches, client
-  numbers track the host instead of drifting.
-- **Cross-peer event log** — host's significant actions (server power, place,
-  break, repair; switch power, place; customer chosen) emit human-readable
-  events that show up on every peer's HUD as a notification stack.
+  `Patches/ClientSuppression.cs` block AutoSave, `ShuffleAvailableCustomers`,
+  and Player money/XP/reputation updates on non-host peers so the
+  simulation can't run in parallel. `F6` toggles `ForceClient` for solo
+  testing of the suppression path.
+- **Economy sync** — host broadcasts `(money, xp, reputation)` at 1 Hz,
+  client writes the values directly. Combined with the suppression
+  patches, client numbers track the host instead of drifting or freezing.
+- **Customer pool sync** — `MainGameManager.availableCustomerIndices` is
+  pushed to clients on join, on every host shuffle, and on every customer
+  choice. Clients mirror the same set of cards in their customer-choice
+  canvas. Both peers share the same `customerItems` source array
+  (deterministic data), so an int list alone is enough to reproduce the
+  visible pool.
+- **Cross-peer event log** — host's significant actions (server power /
+  place / break / repair, switch power / place, customer chosen) emit
+  human-readable events that show up on every peer's HUD as a notification
+  stack with timestamps.
 
-## What doesn't (yet)
+## What's *not* replicated yet
 
-- **No entity replication.** Each peer loads their own save, so what you see
-  in the world is your own data center, not the host's. The capsule shows
-  where the host *would* be standing in their world, mapped onto your
-  coordinates. Useful for proving transport works; not for actually playing
-  together yet.
-- **No initial state snapshot.** A joining client doesn't receive the host's
-  existing servers / cables / customers, only money/XP and live events.
-- **Joining via Steam external invite** (clicking "Join Game" before the game
-  is running) is partially supported — the in-game `GameLobbyJoinRequested_t`
-  callback works, but `+connect_lobby <id>` from the launcher command-line is
-  not parsed yet.
+- **Entity placements** (servers, switches, patch panels, cables, racks).
+  Each peer still loads their own save, so the world geometry is whatever
+  was on disk. The capsule shows where the host *would* be standing in
+  their world, mapped onto your coordinates.
+- **Customer base assignments** — which customer is hosted in which base.
+  The pool is in sync, but the chosen-card-to-base step isn't replicated.
+- **Client-side intents.** Clients can't act on the host's world — buying,
+  toggling power, connecting cables on a client doesn't propagate back.
+- **External Steam invites** (`+connect_lobby <id>` from launch args). In-
+  game overlay invites work via `GameLobbyJoinRequested_t`; the launch-
+  argument path isn't parsed yet.
 
 ## Layout
 
@@ -60,12 +73,22 @@ Tools/
 │   │   ├─ PlayerSync.cs       20 Hz pose broadcast (sender)
 │   │   ├─ RemotePlayers.cs    capsule avatars (receiver)
 │   │   ├─ EconomySync.cs      1 Hz money/xp/rep broadcast + apply
-│   │   └─ EventLog.cs         cross-peer text notifications
+│   │   ├─ EventLog.cs         cross-peer text notifications
+│   │   └─ CustomerPoolSync.cs replicate availableCustomerIndices
+│   ├─ Networking/
+│   │   ├─ SteamLobby.cs       Matchmaking + lobby callbacks +
+│   │   │                        version/Workshop mismatch detection
+│   │   ├─ Transport.cs        SteamNetworkingMessages send/recv
+│   │   │                        (+ DebugLoopback for solo testing)
+│   │   ├─ Authority.cs        IsHost / IsClient / IsAuthoritative
+│   │   └─ WorkshopManifest.cs enumerate StreamingAssets/Mods/workshop_*
 │   ├─ Patches/
 │   │   ├─ Observers.cs        read-only logging patches (debug)
 │   │   ├─ ClientSuppression.cs  prefix patches that no-op the sim on clients
-│   │   └─ HostEvents.cs       host-side patches that emit EventLog entries
-│   └─ UI/Hud.cs               IMGUI overlay (status panel + event stack)
+│   │   └─ HostEvents.cs       host-side patches that emit EventLog +
+│   │                           drive CustomerPoolSync.BroadcastCurrent
+│   └─ UI/Hud.cs               IMGUI overlay (status panel + event stack +
+│                                 mismatch banners + copy-id button)
 │
 ├─ DCInstaller/              single-file self-contained installer (net8.0)
 │                              embeds the built mod DLL, runs the <>O fix,
@@ -141,6 +164,7 @@ runtime on the target machine.
 
 | Key | Action |
 |-----|--------|
+| `F5` | Toggle `Transport.DebugLoopback` (debug — local round-trip dispatch) |
 | `F6` | Toggle `Authority.ForceClient` (debug — testing suppression solo) |
 | `F7` | Warp local player to the first remote avatar |
 | `F8` | Host a Friends-Only Steam lobby |
