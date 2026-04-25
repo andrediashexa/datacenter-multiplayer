@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <RootNamespace>DCInstaller</RootNamespace>
+    <AssemblyName>DCMultiplayer-Installer</AssemblyName>
+    <NoWarn>CA1416</NoWarn>
+
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Mono.Cecil" Version="0.11.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\DCMultiplayer.Mod\bin\Release\DCMultiplayer.dll">
+      <LogicalName>DCMultiplayer.dll</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+</Project>
