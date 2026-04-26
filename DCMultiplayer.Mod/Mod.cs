@@ -51,6 +51,7 @@ public class Mod : MelonMod
         RemotePlayers.Tick(dt);
         ServerSnapshotSync.Tick(dt);
         SwitchSnapshotSync.Tick(dt);
+        ComputerShopBadge.RefreshText();
         var kb = Keyboard.current;
         if (kb == null) return;
         if (kb[Key.F4].wasPressedThisFrame)  { Authority.SuppressClientSave = !Authority.SuppressClientSave; LoggerInstance.Msg($"SuppressClientSave = {Authority.SuppressClientSave}"); }
