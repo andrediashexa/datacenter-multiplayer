@@ -160,6 +160,30 @@ The single-file installer:
 Send the resulting `.exe` to a peer; it self-extracts and needs no .NET
 runtime on the target machine.
 
+### Cutting a release
+
+The mod itself can't be built in CI — `Il2CppAssemblies/*.dll` are generated
+locally by MelonLoader on a Data Center install and aren't redistributable.
+So releases are built locally and published via a small helper script:
+
+```pwsh
+# 1. Bump ModInfo.Version + commit + push
+# 2. Run from anywhere inside the repo:
+pwsh ./scripts/release.ps1 0.0.9
+```
+
+The script:
+- refuses to release from a dirty working tree or a non-`main` branch
+- refuses if `ModInfo.Version` doesn't match the requested version
+- clean-rebuilds the mod, publishes the single-file installer, packages
+  `dist/DCMultiplayer-v<version>-win-x64.zip`
+- tags `v<version>`, pushes the tag
+
+`.github/workflows/release.yml` then opens the GitHub release shell with
+notes pulled from the tag annotation and the latest commit body. Upload
+the `.zip` to that release page (drag-and-drop in the UI, or
+`gh release upload v0.0.9 dist/DCMultiplayer-v0.0.9-win-x64.zip`).
+
 ## Hotkeys (in-game)
 
 | Key | Action |
