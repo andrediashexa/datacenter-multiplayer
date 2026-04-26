@@ -86,9 +86,10 @@ internal static class Hud
         }
         else if (!SteamLobby.IsInLobby)
         {
-            string forced = DCMultiplayer.Networking.Authority.ForceClient ? "  [ForceClient ON]" : "";
-            GUILayout.Label("Idle" + forced);
-            GUILayout.Label("F6 force-client   F8 host   F11 invite");
+            string forced = DCMultiplayer.Networking.Authority.ForceClient ? "  [ForceClient]" : "";
+            string suppress = DCMultiplayer.Networking.Authority.SuppressClientSave ? "  [SuppressSave]" : "";
+            GUILayout.Label("Idle" + forced + suppress);
+            GUILayout.Label("F4 suppress-save   F6 force-client   F8 host   F11 invite");
         }
         else
         {

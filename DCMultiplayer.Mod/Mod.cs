@@ -17,7 +17,7 @@ public class Mod : MelonMod
     public override void OnInitializeMelon()
     {
         LoggerInstance.Msg("DCMultiplayer alive — IL2CPP, Unity 6000.4.2f1");
-        LoggerInstance.Msg("Hotkeys:  F5 loopback  F6 force-client  F7 warp-to-remote  F8 host  F9 leave  F10 dump  F11 invite  F12 ping");
+        LoggerInstance.Msg("Hotkeys:  F4 suppress-save  F5 loopback  F6 force-client  F7 warp-to-remote  F8 host  F9 leave  F10 dump  F11 invite  F12 ping");
         Transport.OnMessage += OnNetworkMessage;
         Transport.OnMessage += RemotePlayers.OnIncoming;
         Transport.OnMessage += EconomySync.OnIncoming;
@@ -50,6 +50,7 @@ public class Mod : MelonMod
         ServerSnapshotSync.Tick(dt);
         var kb = Keyboard.current;
         if (kb == null) return;
+        if (kb[Key.F4].wasPressedThisFrame)  { Authority.SuppressClientSave = !Authority.SuppressClientSave; LoggerInstance.Msg($"SuppressClientSave = {Authority.SuppressClientSave}"); }
         if (kb[Key.F5].wasPressedThisFrame)  { Transport.DebugLoopback = !Transport.DebugLoopback; LoggerInstance.Msg($"DebugLoopback = {Transport.DebugLoopback}"); }
         if (kb[Key.F6].wasPressedThisFrame)  { Authority.ForceClient = !Authority.ForceClient; LoggerInstance.Msg($"ForceClient = {Authority.ForceClient}"); }
         if (kb[Key.F7].wasPressedThisFrame)  TeleportToFirstAvatar();
