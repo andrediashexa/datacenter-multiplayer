@@ -353,6 +353,58 @@ public class SwitchSnapshotTests
     }
 }
 
+public class CableSnapshotTests
+{
+    [Fact]
+    public void EmptyRoundTrips()
+    {
+        var bytes = NetMsg.WriteCableSnapshot(new List<NetMsg.CableRec>());
+        Assert.True(NetMsg.TryReadCableSnapshot(bytes, out var rx));
+        Assert.Empty(rx);
+    }
+
+    [Fact]
+    public void RoundTripsRecord()
+    {
+        var src = new[]
+        {
+            new NetMsg.CableRec(0, "server-a", "switch-1"),
+            new NetMsg.CableRec(int.MaxValue, "", "switch-2"),
+            new NetMsg.CableRec(-7, "patchpanel-x", ""),
+        };
+        var bytes = NetMsg.WriteCableSnapshot(src);
+        Assert.True(NetMsg.TryReadCableSnapshot(bytes, out var rx));
+        Assert.Equal(src.Length, rx.Length);
+        for (int i = 0; i < src.Length; i++)
+        {
+            Assert.Equal(src[i].CableId, rx[i].CableId);
+            Assert.Equal(src[i].EndpointA, rx[i].EndpointA);
+            Assert.Equal(src[i].EndpointB, rx[i].EndpointB);
+        }
+    }
+
+    [Fact]
+    public void RejectsWrongType()
+    {
+        var bytes = NetMsg.WriteCableSnapshot(new[] { new NetMsg.CableRec(1, "a", "b") });
+        bytes[0] = 0;
+        Assert.False(NetMsg.TryReadCableSnapshot(bytes, out _));
+    }
+
+    [Fact]
+    public void RejectsTruncated()
+    {
+        var bytes = NetMsg.WriteCableSnapshot(new[]
+        {
+            new NetMsg.CableRec(1, "a", "b"),
+            new NetMsg.CableRec(2, "c", "d"),
+        });
+        var trunc = new byte[bytes.Length / 2];
+        Buffer.BlockCopy(bytes, 0, trunc, 0, trunc.Length);
+        Assert.False(NetMsg.TryReadCableSnapshot(trunc, out _));
+    }
+}
+
 public class TypeByteUniquenessTest
 {
     // If two messages share a type byte, OnIncoming dispatch can't tell
@@ -368,5 +420,6 @@ public class TypeByteUniquenessTest
         Assert.True(seen.Add(NetMsg.MsgServerSnapshot));
         Assert.True(seen.Add(NetMsg.MsgBaseAssignments));
         Assert.True(seen.Add(NetMsg.MsgSwitchSnapshot));
+        Assert.True(seen.Add(NetMsg.MsgCableSnapshot));
     }
 }

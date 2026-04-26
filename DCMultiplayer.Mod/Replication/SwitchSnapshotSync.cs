@@ -22,6 +22,13 @@ internal static class SwitchSnapshotSync
     static readonly Dictionary<string, Ghost> _ghosts = new();
     public static int Count => _ghosts.Count;
 
+    public static bool TryGetPosition(string switchId, out Vector3 pos)
+    {
+        if (_ghosts.TryGetValue(switchId, out var g) && g.Go != null)
+        { pos = g.Go.transform.position; return true; }
+        pos = default; return false;
+    }
+
     static List<NetMsg.SwitchRec> CollectFromHost()
     {
         var list = new List<NetMsg.SwitchRec>();

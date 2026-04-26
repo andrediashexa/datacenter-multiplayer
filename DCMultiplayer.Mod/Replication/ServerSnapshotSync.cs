@@ -24,6 +24,13 @@ internal static class ServerSnapshotSync
     static readonly Dictionary<string, Ghost> _ghosts = new();
     public static int Count => _ghosts.Count;
 
+    public static bool TryGetPosition(string serverId, out Vector3 pos)
+    {
+        if (_ghosts.TryGetValue(serverId, out var g) && g.Go != null)
+        { pos = g.Go.transform.position; return true; }
+        pos = default; return false;
+    }
+
     // ── send (host) ──────────────────────────────────────────────────────
 
     static List<NetMsg.ServerRec> CollectFromHost()

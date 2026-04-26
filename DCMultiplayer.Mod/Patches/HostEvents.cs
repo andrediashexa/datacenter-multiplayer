@@ -149,3 +149,25 @@ internal static class HE_MGM_ShuffleCustomers
         CustomerPoolSync.BroadcastCurrent();
     }
 }
+
+[HarmonyPatch(typeof(Il2Cpp.NetworkMap), nameof(Il2Cpp.NetworkMap.RegisterCableConnection))]
+internal static class HE_NetworkMap_RegisterCable
+{
+    static void Postfix(int cableId)
+    {
+        if (!Authority.IsAuthoritative || !SteamLobby.IsInLobby) return;
+        EventLog.Emit($"connected cable #{cableId}");
+        CableSnapshotSync.BroadcastSnapshot();
+    }
+}
+
+[HarmonyPatch(typeof(Il2Cpp.NetworkMap), nameof(Il2Cpp.NetworkMap.RemoveCableConnection))]
+internal static class HE_NetworkMap_RemoveCable
+{
+    static void Postfix(int cableId)
+    {
+        if (!Authority.IsAuthoritative || !SteamLobby.IsInLobby) return;
+        EventLog.Emit($"disconnected cable #{cableId}");
+        CableSnapshotSync.BroadcastSnapshot();
+    }
+}

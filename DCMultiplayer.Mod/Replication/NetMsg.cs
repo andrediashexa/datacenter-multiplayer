@@ -14,6 +14,7 @@ internal static class NetMsg
     public const byte MsgServerSnapshot = 0x50;
     public const byte MsgBaseAssignments = 0x60;
     public const byte MsgSwitchSnapshot = 0x70;
+    public const byte MsgCableSnapshot = 0x80;
 
     // Layout for MsgPlayerPose (21 bytes total):
     //   [0]      byte    type = 0x10
@@ -305,6 +306,77 @@ internal static class NetMsg
             int type = BinaryPrimitives.ReadInt32LittleEndian(buf.Slice(pos, 4)); pos += 4;
             byte flags = buf[pos++];
             arr[i] = new SwitchRec(id, x, y, z, yaw, type, (flags & 1) != 0, (flags & 2) != 0);
+        }
+        recs = arr;
+        return true;
+    }
+
+    // Cable snapshot record — identity-only; positions come from looking
+    // up the endpoints in the already-replicated server/switch/patch
+    // panel ghost tables on the client.
+    public readonly struct CableRec
+    {
+        public readonly int CableId;
+        public readonly string EndpointA;
+        public readonly string EndpointB;
+        public CableRec(int id, string a, string b) { CableId = id; EndpointA = a; EndpointB = b; }
+    }
+
+    // Layout for MsgCableSnapshot:
+    //   [0]      byte    type = 0x80
+    //   [1..2]   uint16  record count
+    //   [3..]    per record:
+    //              int32  cableId
+    //              byte   aIdLen
+    //              bytes  aId (UTF-8)
+    //              byte   bIdLen
+    //              bytes  bId (UTF-8)
+    public static byte[] WriteCableSnapshot(System.Collections.Generic.IList<CableRec> recs)
+    {
+        int total = 3;
+        var aBytes = new byte[recs.Count][];
+        var bBytes = new byte[recs.Count][];
+        for (int i = 0; i < recs.Count; i++)
+        {
+            aBytes[i] = System.Text.Encoding.UTF8.GetBytes(recs[i].EndpointA ?? "");
+            bBytes[i] = System.Text.Encoding.UTF8.GetBytes(recs[i].EndpointB ?? "");
+            if (aBytes[i].Length > 255) throw new System.ArgumentException("endpointA too long");
+            if (bBytes[i].Length > 255) throw new System.ArgumentException("endpointB too long");
+            total += 4 + 1 + aBytes[i].Length + 1 + bBytes[i].Length;
+        }
+        var buf = new byte[total];
+        buf[0] = MsgCableSnapshot;
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(1, 2), (ushort)recs.Count);
+        int pos = 3;
+        for (int i = 0; i < recs.Count; i++)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(pos, 4), recs[i].CableId); pos += 4;
+            buf[pos++] = (byte)aBytes[i].Length;
+            aBytes[i].CopyTo(buf, pos); pos += aBytes[i].Length;
+            buf[pos++] = (byte)bBytes[i].Length;
+            bBytes[i].CopyTo(buf, pos); pos += bBytes[i].Length;
+        }
+        return buf;
+    }
+
+    public static bool TryReadCableSnapshot(ReadOnlySpan<byte> buf, out CableRec[] recs)
+    {
+        recs = null;
+        if (buf.Length < 3 || buf[0] != MsgCableSnapshot) return false;
+        int count = BinaryPrimitives.ReadUInt16LittleEndian(buf.Slice(1, 2));
+        var arr = new CableRec[count];
+        int pos = 3;
+        for (int i = 0; i < count; i++)
+        {
+            if (pos + 4 + 1 > buf.Length) return false;
+            int id = BinaryPrimitives.ReadInt32LittleEndian(buf.Slice(pos, 4)); pos += 4;
+            int aLen = buf[pos++];
+            if (pos + aLen + 1 > buf.Length) return false;
+            string a = System.Text.Encoding.UTF8.GetString(buf.Slice(pos, aLen)); pos += aLen;
+            int bLen = buf[pos++];
+            if (pos + bLen > buf.Length) return false;
+            string b = System.Text.Encoding.UTF8.GetString(buf.Slice(pos, bLen)); pos += bLen;
+            arr[i] = new CableRec(id, a, b);
         }
         recs = arr;
         return true;
