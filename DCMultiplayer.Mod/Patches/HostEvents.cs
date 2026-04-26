@@ -89,6 +89,29 @@ internal static class HE_Switch_Power
     {
         if (!Authority.IsAuthoritative || !SteamLobby.IsInLobby) return;
         EventLog.Emit($"powered switch {__instance.switchId} {(__instance.isOn ? "ON" : "OFF")}");
+        SwitchSnapshotSync.BroadcastSnapshot();
+    }
+}
+
+[HarmonyPatch(typeof(Il2Cpp.NetworkSwitch), nameof(Il2Cpp.NetworkSwitch.ItIsBroken))]
+internal static class HE_Switch_Broken
+{
+    static void Postfix(Il2Cpp.NetworkSwitch __instance)
+    {
+        if (!Authority.IsAuthoritative || !SteamLobby.IsInLobby) return;
+        EventLog.Emit($"switch {__instance.switchId} BROKE");
+        SwitchSnapshotSync.BroadcastSnapshot();
+    }
+}
+
+[HarmonyPatch(typeof(Il2Cpp.NetworkSwitch), nameof(Il2Cpp.NetworkSwitch.RepairDevice))]
+internal static class HE_Switch_Repair
+{
+    static void Postfix(Il2Cpp.NetworkSwitch __instance)
+    {
+        if (!Authority.IsAuthoritative || !SteamLobby.IsInLobby) return;
+        EventLog.Emit($"repaired switch {__instance.switchId}");
+        SwitchSnapshotSync.BroadcastSnapshot();
     }
 }
 
@@ -99,6 +122,7 @@ internal static class HE_Switch_Inserted
     {
         if (!Authority.IsAuthoritative || !SteamLobby.IsInLobby) return;
         EventLog.Emit($"placed switch {__instance.switchId} (type {__instance.switchType})");
+        SwitchSnapshotSync.BroadcastSnapshot();
     }
 }
 

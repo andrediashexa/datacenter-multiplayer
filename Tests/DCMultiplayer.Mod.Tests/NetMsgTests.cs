@@ -285,6 +285,74 @@ public class BaseAssignmentsTests
     }
 }
 
+public class SwitchSnapshotTests
+{
+    static NetMsg.SwitchRec Rec(string id, bool on = true, bool broken = false)
+        => new NetMsg.SwitchRec(id, 1f, 2f, 3f, 90f, 5, on, broken);
+
+    [Fact]
+    public void EmptyRoundTrips()
+    {
+        var bytes = NetMsg.WriteSwitchSnapshot(new List<NetMsg.SwitchRec>());
+        Assert.True(NetMsg.TryReadSwitchSnapshot(bytes, out var rx));
+        Assert.Empty(rx);
+    }
+
+    [Fact]
+    public void SingleRecordPreservesAllFields()
+    {
+        var src = new NetMsg.SwitchRec("sw-abc", 12.34f, 5.6f, -7.8f, 180f, 3, true, false);
+        var bytes = NetMsg.WriteSwitchSnapshot(new[] { src });
+        Assert.True(NetMsg.TryReadSwitchSnapshot(bytes, out var rx));
+        var got = Assert.Single(rx);
+        Assert.Equal(src.SwitchId, got.SwitchId);
+        Assert.Equal(src.X, got.X);
+        Assert.Equal(src.Y, got.Y);
+        Assert.Equal(src.Z, got.Z);
+        Assert.Equal(src.Yaw, got.Yaw);
+        Assert.Equal(src.SwitchType, got.SwitchType);
+        Assert.Equal(src.IsOn, got.IsOn);
+        Assert.Equal(src.IsBroken, got.IsBroken);
+    }
+
+    [Fact]
+    public void FlagBitsIndependent()
+    {
+        var combos = new[]
+        {
+            Rec("sw1", on: false, broken: false),
+            Rec("sw2", on: true,  broken: false),
+            Rec("sw3", on: false, broken: true),
+            Rec("sw4", on: true,  broken: true),
+        };
+        var bytes = NetMsg.WriteSwitchSnapshot(combos);
+        Assert.True(NetMsg.TryReadSwitchSnapshot(bytes, out var rx));
+        Assert.Equal(4, rx.Length);
+        for (int i = 0; i < 4; i++)
+        {
+            Assert.Equal(combos[i].IsOn, rx[i].IsOn);
+            Assert.Equal(combos[i].IsBroken, rx[i].IsBroken);
+        }
+    }
+
+    [Fact]
+    public void RejectsTruncated()
+    {
+        var bytes = NetMsg.WriteSwitchSnapshot(new[] { Rec("a"), Rec("b") });
+        var trunc = new byte[bytes.Length / 2];
+        Buffer.BlockCopy(bytes, 0, trunc, 0, trunc.Length);
+        Assert.False(NetMsg.TryReadSwitchSnapshot(trunc, out _));
+    }
+
+    [Fact]
+    public void RejectsWrongType()
+    {
+        var bytes = NetMsg.WriteSwitchSnapshot(new[] { Rec("a") });
+        bytes[0] = 0;
+        Assert.False(NetMsg.TryReadSwitchSnapshot(bytes, out _));
+    }
+}
+
 public class TypeByteUniquenessTest
 {
     // If two messages share a type byte, OnIncoming dispatch can't tell
@@ -299,5 +367,6 @@ public class TypeByteUniquenessTest
         Assert.True(seen.Add(NetMsg.MsgCustomerPool));
         Assert.True(seen.Add(NetMsg.MsgServerSnapshot));
         Assert.True(seen.Add(NetMsg.MsgBaseAssignments));
+        Assert.True(seen.Add(NetMsg.MsgSwitchSnapshot));
     }
 }

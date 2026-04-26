@@ -24,6 +24,7 @@ public class Mod : MelonMod
         Transport.OnMessage += EventLog.OnIncoming;
         Transport.OnMessage += CustomerPoolSync.OnIncoming;
         Transport.OnMessage += ServerSnapshotSync.OnIncoming;
+        Transport.OnMessage += SwitchSnapshotSync.OnIncoming;
         Transport.OnMessage += BaseAssignmentsSync.OnIncoming;
     }
 
@@ -49,6 +50,7 @@ public class Mod : MelonMod
         EconomySync.Tick(dt);
         RemotePlayers.Tick(dt);
         ServerSnapshotSync.Tick(dt);
+        SwitchSnapshotSync.Tick(dt);
         var kb = Keyboard.current;
         if (kb == null) return;
         if (kb[Key.F4].wasPressedThisFrame)  { Authority.SuppressClientSave = !Authority.SuppressClientSave; LoggerInstance.Msg($"SuppressClientSave = {Authority.SuppressClientSave}"); }

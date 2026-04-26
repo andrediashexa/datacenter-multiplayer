@@ -160,6 +160,8 @@ internal static class SteamLobby
             catch (System.Exception ex) { Log.Error($"customer pool snapshot send failed: {ex.Message}"); }
             try { DCMultiplayer.Replication.ServerSnapshotSync.SendTo(changed); }
             catch (System.Exception ex) { Log.Error($"server snapshot send failed: {ex.Message}"); }
+            try { DCMultiplayer.Replication.SwitchSnapshotSync.SendTo(changed); }
+            catch (System.Exception ex) { Log.Error($"switch snapshot send failed: {ex.Message}"); }
             try { DCMultiplayer.Replication.BaseAssignmentsSync.SendTo(changed); }
             catch (System.Exception ex) { Log.Error($"base assignments snapshot send failed: {ex.Message}"); }
         }
