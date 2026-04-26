@@ -5,6 +5,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/status-in%20development-orange?style=flat-square" alt="Status: in development">
   <img src="https://img.shields.io/github/v/release/andrediashexa/datacenter-multiplayer?include_prereleases&style=flat-square&label=latest" alt="Latest release">
+  <img src="https://img.shields.io/github/actions/workflow/status/andrediashexa/datacenter-multiplayer/test.yml?branch=main&style=flat-square&label=tests" alt="Tests">
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License: MIT">
   <img src="https://img.shields.io/badge/MelonLoader-0.7.2-7c3aed?style=flat-square" alt="MelonLoader 0.7.2">
   <img src="https://img.shields.io/badge/Unity-6000.4.2f1-222c37?style=flat-square&logo=unity" alt="Unity 6000.4.2f1">
@@ -118,9 +119,15 @@ Tools/
 ├─ DCInspect/                Mono.Cecil-based dumper for Assembly-CSharp.dll
 │                              (resolve real method signatures during dev)
 │
+├─ Tests/DCMultiplayer.Mod.Tests/   xunit round-trip tests for NetMsg
+│                              (no game deps, runs in CI)
+│
 ├─ docs/CLAUDE.md            running technical briefing — what's known about
 │                              the game's IL2CPP surface, Phase A/B/C/D plan,
 │                              gotchas, hotkeys, current status
+│
+├─ scripts/release.ps1       cut a release: rebuild, zip, tag, push
+├─ .github/workflows/        CI (test on push/PR, release shell on tag)
 │
 ├─ README.md                 this file
 ├─ LICENSE                   MIT

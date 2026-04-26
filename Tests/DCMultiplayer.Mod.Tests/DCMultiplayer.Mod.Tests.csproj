@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.10.0" />
+    <PackageReference Include="xunit" Version="2.9.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <!-- NetMsg.cs has no IL2CPP / Unity dependencies (pure
+       System.Buffers.Binary + System.Text.Encoding). Linking the file
+       lets us round-trip-test the wire format in plain net8.0 without
+       pulling the rest of the mod project (which references game DLLs
+       that aren't available in CI). -->
+  <ItemGroup>
+    <Compile Include="..\..\DCMultiplayer.Mod\Replication\NetMsg.cs">
+      <Link>NetMsg.cs</Link>
+    </Compile>
+  </ItemGroup>
+</Project>

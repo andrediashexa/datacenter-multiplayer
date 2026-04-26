@@ -1,0 +1,29 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Only the wire-format tests can run in CI — the mod project itself
+# references Il2Cpp proxy DLLs that are generated locally on a Data Center
+# install and aren't redistributable. The test project links NetMsg.cs via
+# <Compile Include=...> and has no game dependencies, so it builds and
+# runs anywhere with the .NET 8 SDK.
+
+jobs:
+  netmsg:
+    name: NetMsg round-trip tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore + test
+        run: |
+          cd Tests/DCMultiplayer.Mod.Tests
+          dotnet test -c Release --logger "console;verbosity=normal"
