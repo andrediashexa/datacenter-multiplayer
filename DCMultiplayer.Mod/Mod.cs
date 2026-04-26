@@ -27,6 +27,7 @@ public class Mod : MelonMod
         Transport.OnMessage += BaseAssignmentsSync.OnIncoming;
         Transport.OnMessage += CableSnapshotSync.OnIncoming;
         Transport.OnMessage += PatchPanelSnapshotSync.OnIncoming;
+        Transport.OnMessage += IntentBus.OnIncoming;
     }
 
     public override void OnSceneWasInitialized(int buildIndex, string sceneName)

@@ -28,7 +28,7 @@ internal static class ComputerShopBadge
     static TextMeshProUGUI _statusText;
     static TextMeshProUGUI _membersText;
     static TextMeshProUGUI _netText;
-    static GameObject _hostButtonGo, _leaveButtonGo, _inviteButtonGo, _copyIdButtonGo, _pingButtonGo;
+    static GameObject _hostButtonGo, _leaveButtonGo, _inviteButtonGo, _copyIdButtonGo, _pingButtonGo, _refreshButtonGo;
     static TextMeshProUGUI _mismatchText;
     static Transform _iconButtonTmpl; // a Button Grid icon we clone for actions
 
@@ -202,6 +202,7 @@ internal static class ComputerShopBadge
                     _inviteButtonGo = SpawnActionButton(actionGrid.transform, "Invite", () => SteamLobby.InviteFriendsOverlay());
                     _copyIdButtonGo = SpawnActionButton(actionGrid.transform, "Copy ID", CopyLobbyIdToClipboard);
                     _pingButtonGo = SpawnActionButton(actionGrid.transform, "Ping", BroadcastPing);
+                    _refreshButtonGo = SpawnActionButton(actionGrid.transform, "Refresh", IntentBus.RequestRefresh);
                 }
                 else
                 {
@@ -479,6 +480,7 @@ internal static class ComputerShopBadge
             if (_inviteButtonGo != null) _inviteButtonGo.SetActive(SteamLobby.IsInLobby);
             if (_copyIdButtonGo != null) _copyIdButtonGo.SetActive(SteamLobby.IsInLobby);
             if (_pingButtonGo != null) _pingButtonGo.SetActive(SteamLobby.IsInLobby);
+            if (_refreshButtonGo != null) _refreshButtonGo.SetActive(SteamLobby.IsInLobby);
 
             // Mismatch banner — surface what was previously a HUD-only
             // visual in v0.0.7 (the lobby version + workshop diff is set

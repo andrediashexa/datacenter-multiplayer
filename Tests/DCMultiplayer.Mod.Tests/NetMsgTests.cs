@@ -446,6 +446,78 @@ public class PatchPanelSnapshotTests
     }
 }
 
+public class IntentTests
+{
+    [Fact]
+    public void NoPayloadRoundTrips()
+    {
+        var bytes = NetMsg.WriteIntentNoPayload(NetMsg.IntentRefresh);
+        Assert.True(NetMsg.TryReadIntent(bytes, out byte subtype, out var payload));
+        Assert.Equal(NetMsg.IntentRefresh, subtype);
+        Assert.Equal(0, payload.Length);
+    }
+
+    [Fact]
+    public void StringIdRoundTrips()
+    {
+        var bytes = NetMsg.WriteIntentWithStringId(NetMsg.IntentToggleServerPower, "server-abc-123");
+        Assert.True(NetMsg.TryReadIntent(bytes, out byte subtype, out var payload));
+        Assert.Equal(NetMsg.IntentToggleServerPower, subtype);
+        Assert.True(NetMsg.TryReadStringIdPayload(payload, out string id));
+        Assert.Equal("server-abc-123", id);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("a")]
+    [InlineData("longer-id-with-dashes-and-acentos-úý")]
+    public void StringIdEdgeCases(string id)
+    {
+        var bytes = NetMsg.WriteIntentWithStringId(NetMsg.IntentToggleSwitchPower, id);
+        Assert.True(NetMsg.TryReadIntent(bytes, out _, out var payload));
+        Assert.True(NetMsg.TryReadStringIdPayload(payload, out string rx));
+        Assert.Equal(id, rx);
+    }
+
+    [Fact]
+    public void RejectsWrongType()
+    {
+        var bytes = NetMsg.WriteIntentNoPayload(NetMsg.IntentRefresh);
+        bytes[0] = 0;
+        Assert.False(NetMsg.TryReadIntent(bytes, out _, out _));
+    }
+
+    [Fact]
+    public void RejectsTruncatedStringPayload()
+    {
+        var bytes = NetMsg.WriteIntentWithStringId(NetMsg.IntentToggleServerPower, "abcdef");
+        var trunc = new byte[bytes.Length - 3];
+        Buffer.BlockCopy(bytes, 0, trunc, 0, trunc.Length);
+        Assert.True(NetMsg.TryReadIntent(trunc, out _, out var payload));
+        Assert.False(NetMsg.TryReadStringIdPayload(payload, out _));
+    }
+
+    [Fact]
+    public void OversizedStringRejectedOnWrite()
+    {
+        var huge = new string('x', 256);
+        Assert.Throws<ArgumentException>(() =>
+            NetMsg.WriteIntentWithStringId(NetMsg.IntentToggleServerPower, huge));
+    }
+}
+
+public class IntentSubtypeUniquenessTest
+{
+    [Fact]
+    public void IntentSubtypesAreUnique()
+    {
+        var seen = new HashSet<byte>();
+        Assert.True(seen.Add(NetMsg.IntentRefresh));
+        Assert.True(seen.Add(NetMsg.IntentToggleServerPower));
+        Assert.True(seen.Add(NetMsg.IntentToggleSwitchPower));
+    }
+}
+
 public class TypeByteUniquenessTest
 {
     // If two messages share a type byte, OnIncoming dispatch can't tell
@@ -463,5 +535,6 @@ public class TypeByteUniquenessTest
         Assert.True(seen.Add(NetMsg.MsgSwitchSnapshot));
         Assert.True(seen.Add(NetMsg.MsgCableSnapshot));
         Assert.True(seen.Add(NetMsg.MsgPatchPanelSnapshot));
+        Assert.True(seen.Add(NetMsg.MsgIntent));
     }
 }

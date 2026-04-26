@@ -16,6 +16,13 @@ internal static class NetMsg
     public const byte MsgSwitchSnapshot = 0x70;
     public const byte MsgCableSnapshot = 0x80;
     public const byte MsgPatchPanelSnapshot = 0x90;
+    public const byte MsgIntent = 0xA0;
+
+    // Intent subtypes — kept as a separate byte after the type so future
+    // intents share a single channel/dispatcher pair.
+    public const byte IntentRefresh = 0x01;            // no payload — re-broadcast all snapshots
+    public const byte IntentToggleServerPower = 0x02;  // payload: byte idLen + UTF-8 serverId
+    public const byte IntentToggleSwitchPower = 0x03;  // payload: byte idLen + UTF-8 switchId
 
     // Layout for MsgPlayerPose (21 bytes total):
     //   [0]      byte    type = 0x10
@@ -452,6 +459,50 @@ internal static class NetMsg
             arr[i] = new PatchPanelRec(id, x, y, z, yaw, type);
         }
         recs = arr;
+        return true;
+    }
+
+    // Layout for MsgIntent:
+    //   [0]    byte    type = 0xA0
+    //   [1]    byte    subtype (IntentRefresh / IntentToggleServerPower / ...)
+    //   [2..]  payload (subtype-defined; empty for IntentRefresh)
+    //
+    // Helpers below keep the on-wire side trivial: the dispatcher reads
+    // subtype, then peeks the rest of the buffer with a subtype-specific
+    // parser. Each parser returns false on truncation/mismatch so dispatch
+    // can drop the message without crashing.
+    public static byte[] WriteIntentNoPayload(byte subtype)
+        => new byte[] { MsgIntent, subtype };
+
+    public static byte[] WriteIntentWithStringId(byte subtype, string id)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(id ?? "");
+        if (bytes.Length > 255) throw new System.ArgumentException("id too long", nameof(id));
+        var buf = new byte[3 + bytes.Length];
+        buf[0] = MsgIntent;
+        buf[1] = subtype;
+        buf[2] = (byte)bytes.Length;
+        bytes.CopyTo(buf, 3);
+        return buf;
+    }
+
+    public static bool TryReadIntent(ReadOnlySpan<byte> buf, out byte subtype, out ReadOnlySpan<byte> payload)
+    {
+        subtype = 0;
+        payload = default;
+        if (buf.Length < 2 || buf[0] != MsgIntent) return false;
+        subtype = buf[1];
+        payload = buf.Slice(2);
+        return true;
+    }
+
+    public static bool TryReadStringIdPayload(ReadOnlySpan<byte> payload, out string id)
+    {
+        id = null;
+        if (payload.Length < 1) return false;
+        int len = payload[0];
+        if (payload.Length < 1 + len) return false;
+        id = System.Text.Encoding.UTF8.GetString(payload.Slice(1, len));
         return true;
     }
 
