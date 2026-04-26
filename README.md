@@ -2,17 +2,32 @@
   <img src="docs/img/banner.png" alt="Data Center — Multiplayer Support" width="100%">
 </p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/status-in%20development-orange?style=flat-square" alt="Status: in development">
+  <img src="https://img.shields.io/github/v/release/andrediashexa/datacenter-multiplayer?include_prereleases&style=flat-square&label=latest" alt="Latest release">
+  <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License: MIT">
+  <img src="https://img.shields.io/badge/MelonLoader-0.7.2-7c3aed?style=flat-square" alt="MelonLoader 0.7.2">
+  <img src="https://img.shields.io/badge/Unity-6000.4.2f1-222c37?style=flat-square&logo=unity" alt="Unity 6000.4.2f1">
+</p>
+
 # Data Center — Multiplayer Mod
 
 Unofficial multiplayer mod for **Data Center** (by Waseku, Steam AppID `4170200`).
 Built on top of [MelonLoader](https://melonwiki.xyz/) for IL2CPP and the game's
 existing Steamworks.NET integration.
 
-> **Status:** experimental, current version `0.0.8`. Lobby + transport +
-> transform/economy/customer-pool replication validated end-to-end with two
-> real Steam users. Workshop manifest mismatch detection works on join.
-> Server / cable / switch placements are not yet replicated — see
-> "What's replicated / what isn't" below.
+> 🚧 **This is a work in progress.**
+> The mod is under active development and **not feature-complete**. Wire formats,
+> hotkeys, and on-disk layout may change between any two versions before `0.1`.
+> Both peers must run the **exact same** version — joining a host on a different
+> mod version is detected and surfaced as a banner in the HUD, but full
+> compatibility is not guaranteed.
+>
+> Lobby + transport + transform / economy / customer-pool / server-placement
+> replication is validated end-to-end with two real Steam users. Cables,
+> switches, patch panels, customer-base assignments, and client save
+> suppression are **not** implemented yet — see "What's replicated / what
+> isn't" below.
 
 ## What's replicated (host → peers)
 
