@@ -157,7 +157,9 @@ internal static class SteamLobby
             && (changeFlags & EChatMemberStateChange.k_EChatMemberStateChangeEntered) != 0)
         {
             try { DCMultiplayer.Replication.CustomerPoolSync.SendTo(changed); }
-            catch (System.Exception ex) { Log.Error($"snapshot send failed: {ex.Message}"); }
+            catch (System.Exception ex) { Log.Error($"customer snapshot send failed: {ex.Message}"); }
+            try { DCMultiplayer.Replication.ServerSnapshotSync.SendTo(changed); }
+            catch (System.Exception ex) { Log.Error($"server snapshot send failed: {ex.Message}"); }
         }
     }
 

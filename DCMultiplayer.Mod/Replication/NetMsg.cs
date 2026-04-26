@@ -11,6 +11,7 @@ internal static class NetMsg
     public const byte MsgEconomyTick = 0x20;
     public const byte MsgEventText = 0x30;
     public const byte MsgCustomerPool = 0x40;
+    public const byte MsgServerSnapshot = 0x50;
 
     // Layout for MsgPlayerPose (21 bytes total):
     //   [0]      byte    type = 0x10
@@ -117,6 +118,105 @@ internal static class NetMsg
         indices = new int[count];
         for (int i = 0; i < count; i++)
             indices[i] = BinaryPrimitives.ReadInt32LittleEndian(buf.Slice(3 + i * 4, 4));
+        return true;
+    }
+
+    // Server snapshot record — read-only state of one host server, rendered
+    // by clients as a placeholder ghost. We don't ship velocity/animation
+    // because servers don't move; this is a position+identity packet.
+    public readonly struct ServerRec
+    {
+        public readonly string ServerId;
+        public readonly float X, Y, Z;
+        public readonly float Yaw;
+        public readonly int ServerType;
+        public readonly bool IsOn;
+        public readonly bool IsBroken;
+        public readonly int CustomerId;
+        public readonly int AppId;
+        public readonly string Ip;
+        public ServerRec(string id, float x, float y, float z, float yaw, int type, bool on, bool broken, int cust, int app, string ip)
+        { ServerId = id; X = x; Y = y; Z = z; Yaw = yaw; ServerType = type; IsOn = on; IsBroken = broken; CustomerId = cust; AppId = app; Ip = ip; }
+    }
+
+    // Layout for MsgServerSnapshot:
+    //   [0]      byte    type = 0x50
+    //   [1..2]   uint16  record count
+    //   [3..]    per record:
+    //              byte    idLen
+    //              bytes   id (UTF-8)
+    //              float32 x, y, z, yaw                 (16 B)
+    //              int32   serverType                   (4 B)
+    //              byte    flags (bit0=isOn, bit1=isBroken)
+    //              int32   customerId                   (4 B)
+    //              int32   appId                        (4 B)
+    //              byte    ipLen
+    //              bytes   ip (UTF-8)
+    public static byte[] WriteServerSnapshot(System.Collections.Generic.IList<ServerRec> recs)
+    {
+        // Two passes: measure, then write — avoids growth juggling.
+        int total = 3;
+        var idBytes = new byte[recs.Count][];
+        var ipBytes = new byte[recs.Count][];
+        for (int i = 0; i < recs.Count; i++)
+        {
+            idBytes[i] = System.Text.Encoding.UTF8.GetBytes(recs[i].ServerId ?? "");
+            ipBytes[i] = System.Text.Encoding.UTF8.GetBytes(recs[i].Ip ?? "");
+            if (idBytes[i].Length > 255) throw new System.ArgumentException("serverId too long");
+            if (ipBytes[i].Length > 255) throw new System.ArgumentException("ip too long");
+            total += 1 + idBytes[i].Length + 16 + 4 + 1 + 4 + 4 + 1 + ipBytes[i].Length;
+        }
+        var buf = new byte[total];
+        buf[0] = MsgServerSnapshot;
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(1, 2), (ushort)recs.Count);
+        int pos = 3;
+        for (int i = 0; i < recs.Count; i++)
+        {
+            var r = recs[i];
+            buf[pos++] = (byte)idBytes[i].Length;
+            idBytes[i].CopyTo(buf, pos); pos += idBytes[i].Length;
+            BinaryPrimitives.WriteSingleLittleEndian(buf.AsSpan(pos, 4), r.X);  pos += 4;
+            BinaryPrimitives.WriteSingleLittleEndian(buf.AsSpan(pos, 4), r.Y);  pos += 4;
+            BinaryPrimitives.WriteSingleLittleEndian(buf.AsSpan(pos, 4), r.Z);  pos += 4;
+            BinaryPrimitives.WriteSingleLittleEndian(buf.AsSpan(pos, 4), r.Yaw); pos += 4;
+            BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(pos, 4), r.ServerType); pos += 4;
+            byte flags = 0; if (r.IsOn) flags |= 1; if (r.IsBroken) flags |= 2;
+            buf[pos++] = flags;
+            BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(pos, 4), r.CustomerId); pos += 4;
+            BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(pos, 4), r.AppId); pos += 4;
+            buf[pos++] = (byte)ipBytes[i].Length;
+            ipBytes[i].CopyTo(buf, pos); pos += ipBytes[i].Length;
+        }
+        return buf;
+    }
+
+    public static bool TryReadServerSnapshot(ReadOnlySpan<byte> buf, out ServerRec[] recs)
+    {
+        recs = null;
+        if (buf.Length < 3 || buf[0] != MsgServerSnapshot) return false;
+        int count = BinaryPrimitives.ReadUInt16LittleEndian(buf.Slice(1, 2));
+        var arr = new ServerRec[count];
+        int pos = 3;
+        for (int i = 0; i < count; i++)
+        {
+            if (pos >= buf.Length) return false;
+            int idLen = buf[pos++];
+            if (pos + idLen + 16 + 4 + 1 + 4 + 4 + 1 > buf.Length) return false;
+            string id = System.Text.Encoding.UTF8.GetString(buf.Slice(pos, idLen)); pos += idLen;
+            float x = BinaryPrimitives.ReadSingleLittleEndian(buf.Slice(pos, 4));   pos += 4;
+            float y = BinaryPrimitives.ReadSingleLittleEndian(buf.Slice(pos, 4));   pos += 4;
+            float z = BinaryPrimitives.ReadSingleLittleEndian(buf.Slice(pos, 4));   pos += 4;
+            float yaw = BinaryPrimitives.ReadSingleLittleEndian(buf.Slice(pos, 4)); pos += 4;
+            int type = BinaryPrimitives.ReadInt32LittleEndian(buf.Slice(pos, 4));   pos += 4;
+            byte flags = buf[pos++];
+            int cust = BinaryPrimitives.ReadInt32LittleEndian(buf.Slice(pos, 4));   pos += 4;
+            int app = BinaryPrimitives.ReadInt32LittleEndian(buf.Slice(pos, 4));    pos += 4;
+            int ipLen = buf[pos++];
+            if (pos + ipLen > buf.Length) return false;
+            string ip = System.Text.Encoding.UTF8.GetString(buf.Slice(pos, ipLen)); pos += ipLen;
+            arr[i] = new ServerRec(id, x, y, z, yaw, type, (flags & 1) != 0, (flags & 2) != 0, cust, app, ip);
+        }
+        recs = arr;
         return true;
     }
 }

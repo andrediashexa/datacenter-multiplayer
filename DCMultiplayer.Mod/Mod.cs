@@ -23,6 +23,7 @@ public class Mod : MelonMod
         Transport.OnMessage += EconomySync.OnIncoming;
         Transport.OnMessage += EventLog.OnIncoming;
         Transport.OnMessage += CustomerPoolSync.OnIncoming;
+        Transport.OnMessage += ServerSnapshotSync.OnIncoming;
     }
 
     public override void OnSceneWasInitialized(int buildIndex, string sceneName)
@@ -46,6 +47,7 @@ public class Mod : MelonMod
         PlayerSync.Tick(dt);
         EconomySync.Tick(dt);
         RemotePlayers.Tick(dt);
+        ServerSnapshotSync.Tick(dt);
         var kb = Keyboard.current;
         if (kb == null) return;
         if (kb[Key.F5].wasPressedThisFrame)  { Transport.DebugLoopback = !Transport.DebugLoopback; LoggerInstance.Msg($"DebugLoopback = {Transport.DebugLoopback}"); }

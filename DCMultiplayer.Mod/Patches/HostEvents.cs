@@ -15,6 +15,7 @@ internal static class HE_Server_Power
     {
         if (!Authority.IsAuthoritative || !SteamLobby.IsInLobby) return;
         EventLog.Emit($"powered server {__instance.IP ?? __instance.ServerID} {(__instance.isOn ? "ON" : "OFF")}");
+        ServerSnapshotSync.BroadcastSnapshot();
     }
 }
 
@@ -25,6 +26,7 @@ internal static class HE_Server_Inserted
     {
         if (!Authority.IsAuthoritative || !SteamLobby.IsInLobby) return;
         EventLog.Emit($"placed server {__instance.IP ?? __instance.ServerID} (type {__instance.serverType})");
+        ServerSnapshotSync.BroadcastSnapshot();
     }
 }
 
@@ -35,6 +37,7 @@ internal static class HE_Server_Broken
     {
         if (!Authority.IsAuthoritative || !SteamLobby.IsInLobby) return;
         EventLog.Emit($"server {__instance.IP ?? __instance.ServerID} BROKE");
+        ServerSnapshotSync.BroadcastSnapshot();
     }
 }
 
@@ -45,6 +48,37 @@ internal static class HE_Server_Repair
     {
         if (!Authority.IsAuthoritative || !SteamLobby.IsInLobby) return;
         EventLog.Emit($"repaired server {__instance.IP ?? __instance.ServerID}");
+        ServerSnapshotSync.BroadcastSnapshot();
+    }
+}
+
+[HarmonyPatch(typeof(Il2Cpp.Server), nameof(Il2Cpp.Server.SetIP))]
+internal static class HE_Server_SetIP
+{
+    static void Postfix(Il2Cpp.Server __instance)
+    {
+        if (!Authority.IsAuthoritative || !SteamLobby.IsInLobby) return;
+        ServerSnapshotSync.BroadcastSnapshot();
+    }
+}
+
+[HarmonyPatch(typeof(Il2Cpp.Server), nameof(Il2Cpp.Server.UpdateAppID))]
+internal static class HE_Server_UpdateAppID
+{
+    static void Postfix(Il2Cpp.Server __instance)
+    {
+        if (!Authority.IsAuthoritative || !SteamLobby.IsInLobby) return;
+        ServerSnapshotSync.BroadcastSnapshot();
+    }
+}
+
+[HarmonyPatch(typeof(Il2Cpp.Server), nameof(Il2Cpp.Server.UpdateCustomer))]
+internal static class HE_Server_UpdateCustomer
+{
+    static void Postfix(Il2Cpp.Server __instance)
+    {
+        if (!Authority.IsAuthoritative || !SteamLobby.IsInLobby) return;
+        ServerSnapshotSync.BroadcastSnapshot();
     }
 }
 
