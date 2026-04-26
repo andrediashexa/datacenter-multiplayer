@@ -1,6 +1,5 @@
 using DCMultiplayer.Networking;
 using DCMultiplayer.Replication;
-using DCMultiplayer.UI;
 using MelonLoader;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -78,7 +77,11 @@ public class Mod : MelonMod
         LoggerInstance.Msg($"F7: warped to {target}");
     }
 
-    public override void OnGUI() => Hud.Draw();
+    // The IMGUI overlay was the original lobby surface; v0.0.16 moved that
+    // UX onto the in-game ComputerShop terminal. The HUD code is kept for
+    // reference (in case we want to bring back a corner status indicator
+    // for non-computer scenes) but no longer rendered.
+    // public override void OnGUI() => Hud.Draw();
 
     void BroadcastPing()
     {

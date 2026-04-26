@@ -23,8 +23,13 @@ internal static class ComputerShopBadge
     static GameObject _badge;
     static TextMeshProUGUI _text;     // canvas-space TMP — lives on mainScreen
     static Il2Cpp.ComputerShop _shop; // remember owning shop so click can toggle screens
-    static GameObject _panel;         // our placeholder "Multiplayer" panel
-    static TextMeshProUGUI _panelText;
+    static GameObject _panel;         // our "Multiplayer" panel
+    static TextMeshProUGUI _headerText;
+    static TextMeshProUGUI _statusText;
+    static TextMeshProUGUI _membersText;
+    static TextMeshProUGUI _netText;
+    static GameObject _hostButtonGo, _leaveButtonGo, _inviteButtonGo;
+    static Transform _iconButtonTmpl; // a Button Grid icon we clone for actions
 
     public static void Plant(Il2Cpp.ComputerShop shop)
     {
@@ -152,25 +157,55 @@ internal static class ComputerShopBadge
                 try { Object.Destroy(c); } catch { }
             }
 
-            // Add a centred TMP child for the "Multiplayer (WIP)" headline.
-            // Use the Object.Instantiate-an-existing-TMP trick so we
-            // inherit a working RectTransform without fighting IL2CPP.
+            // Spawn the four text rows by cloning an existing TMP (an
+            // approach we know works under IL2CPP — building a UGUI
+            // RectTransform from scratch fails). Each clone is shifted
+            // via localPosition so we get a vertical stack without
+            // fighting the inherited anchors.
             var existingTmp = _shop.mainScreen.GetComponentInChildren<TextMeshProUGUI>(includeInactive: true);
             if (existingTmp != null)
             {
-                var headerGo = Object.Instantiate(existingTmp.gameObject, clone.transform);
-                headerGo.name = "DCMP_PanelHeader";
-                _panelText = headerGo.GetComponent<TextMeshProUGUI>();
-                if (_panelText != null)
-                {
-                    _panelText.text = "DC MULTIPLAYER\n\n(work in progress)\n\nidle";
-                    _panelText.alignment = TextAlignmentOptions.Center;
-                    _panelText.fontSize = 48;
-                }
+                _headerText = SpawnText(existingTmp, clone.transform, "DCMP_Header", "DC MULTIPLAYER", 56, +260f);
+                _statusText = SpawnText(existingTmp, clone.transform, "DCMP_Status", "idle — F8 to host", 32, +160f);
+                _membersText = SpawnText(existingTmp, clone.transform, "DCMP_Members", "", 24, +20f);
+                _netText = SpawnText(existingTmp, clone.transform, "DCMP_Net", "", 18, -100f);
             }
             else
             {
                 Log.Warning("BuildPanel: no TMP template found on mainScreen — header skipped");
+            }
+
+            // Action buttons: clone the entire Button Grid (which already
+            // has a HorizontalLayoutGroup or similar that auto-positions
+            // its children) so our buttons inherit a working layout
+            // without us computing anchors. Then strip the cloned grid's
+            // children and re-populate with three retitled icon buttons.
+            try
+            {
+                var sourceGrid = _shop.mainScreen.transform.GetChild(0); // "Button Grid"
+                if (sourceGrid != null && sourceGrid.childCount > 0)
+                {
+                    _iconButtonTmpl = sourceGrid.GetChild(0); // shared by all action buttons
+
+                    var actionGrid = Object.Instantiate(sourceGrid.gameObject, clone.transform);
+                    actionGrid.name = "DCMP_ActionGrid";
+
+                    // Strip cloned grid's children — we'll re-fill with our 3.
+                    for (int i = actionGrid.transform.childCount - 1; i >= 0; i--)
+                        Object.Destroy(actionGrid.transform.GetChild(i).gameObject);
+
+                    _hostButtonGo = SpawnActionButton(actionGrid.transform, "Host Lobby", () => SteamLobby.HostLobby());
+                    _leaveButtonGo = SpawnActionButton(actionGrid.transform, "Leave Lobby", () => SteamLobby.Leave());
+                    _inviteButtonGo = SpawnActionButton(actionGrid.transform, "Invite", () => SteamLobby.InviteFriendsOverlay());
+                }
+                else
+                {
+                    Log.Warning("BuildPanel: mainScreen has no Button Grid to clone for action row");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Log.Warning($"BuildPanel: action grid setup failed: {ex.Message}");
             }
 
             // Back button: the existing secondary screens (Balance Sheet,
@@ -219,7 +254,52 @@ internal static class ComputerShopBadge
         {
             Log.Error($"BuildPanel failed: {ex.GetType().Name}: {ex.Message}");
             if (_panel != null) try { Object.Destroy(_panel); } catch { }
-            _panel = null; _panelText = null;
+            _panel = null; _headerText = null; _statusText = null; _membersText = null; _netText = null;
+        }
+    }
+
+    static TextMeshProUGUI SpawnText(TextMeshProUGUI template, Transform parent, string name, string text, float fontSize, float yOffset)
+    {
+        var go = Object.Instantiate(template.gameObject, parent);
+        go.name = name;
+        go.transform.localPosition = new Vector3(0f, yOffset, 0f);
+        var t = go.GetComponent<TextMeshProUGUI>();
+        if (t != null)
+        {
+            t.text = text;
+            t.fontSize = fontSize;
+            t.alignment = TextAlignmentOptions.Center;
+        }
+        return t;
+    }
+
+    static GameObject SpawnActionButton(Transform parentGrid, string label, System.Action onClick)
+    {
+        if (_iconButtonTmpl == null || parentGrid == null) return null;
+        try
+        {
+            var go = Object.Instantiate(_iconButtonTmpl.gameObject, parentGrid);
+            go.name = $"DCMP_Action_{label}";
+
+            var lbl = go.GetComponentInChildren<TextMeshProUGUI>(includeInactive: true);
+            if (lbl != null) lbl.text = label;
+
+            var sel = go.GetComponentInChildren<Selectable>(includeInactive: true);
+            var be = sel != null ? sel.TryCast<UnityEngine.UI.ButtonExtended>() : null;
+            if (be != null)
+            {
+                be.onClick.RemoveAllListeners();
+                int pn = be.onClick.GetPersistentEventCount();
+                for (int i = 0; i < pn; i++)
+                    be.onClick.SetPersistentListenerState(i, UnityEventCallState.Off);
+                be.onClick.AddListener(onClick);
+            }
+            return go;
+        }
+        catch (System.Exception ex)
+        {
+            Log.Warning($"SpawnActionButton('{label}') failed: {ex.Message}");
+            return null;
         }
     }
 
@@ -309,7 +389,7 @@ internal static class ComputerShopBadge
                 if (_shop.hireScreen != null) _shop.hireScreen.SetActive(false);
                 if (_shop.networkMapScreen != null) _shop.networkMapScreen.SetActive(false);
                 _panel.SetActive(true);
-                if (_panelText != null) _panelText.text = $"DC MULTIPLAYER\n\n(work in progress)\n\n{status}";
+                RefreshText();
             }
             catch (System.Exception ex)
             {
@@ -323,9 +403,56 @@ internal static class ComputerShopBadge
 
     public static void RefreshText()
     {
-        // The button is a static "Multiplayer" label for now; live state
-        // lives in the lobby panel we'll mount onto the click. Nothing to
-        // refresh here yet — kept as a hook for the next iteration.
+        if (_panel == null || !_panel.activeSelf) return;
+        try
+        {
+            // Status line + buttons toggled by lobby state
+            string status;
+            int memberCount = 0;
+            if (!Il2Cpp.SteamManager.Initialized)
+                status = "Steam not ready";
+            else if (!SteamLobby.IsInLobby)
+                status = "idle — press Host Lobby to start";
+            else
+            {
+                memberCount = SteamMatchmaking.GetNumLobbyMembers(SteamLobby.Current);
+                string role = SteamLobby.IsHost ? "host" : "client";
+                status = $"lobby {SteamLobby.Current.m_SteamID}  ·  {memberCount} member{(memberCount == 1 ? "" : "s")}  ·  {role}";
+            }
+            if (_statusText != null) _statusText.text = status;
+
+            // Member list
+            if (_membersText != null)
+            {
+                if (!SteamLobby.IsInLobby) _membersText.text = "";
+                else
+                {
+                    var sb = new System.Text.StringBuilder();
+                    for (int i = 0; i < memberCount; i++)
+                    {
+                        var id = SteamMatchmaking.GetLobbyMemberByIndex(SteamLobby.Current, i);
+                        string name = SteamFriends.GetFriendPersonaName(id);
+                        bool isMe = id == SteamUser.GetSteamID();
+                        bool isOwner = id == SteamMatchmaking.GetLobbyOwner(SteamLobby.Current);
+                        sb.Append("• ").Append(name);
+                        if (isMe) sb.Append(" (you)");
+                        if (isOwner) sb.Append(" *host");
+                        sb.AppendLine();
+                    }
+                    _membersText.text = sb.ToString();
+                }
+            }
+
+            // Net stats
+            if (_netText != null)
+                _netText.text = $"net  rx {Transport.LastRxPackets}p / {Transport.LastRxBytes}B    tx {Transport.LastTxPackets}p / {Transport.LastTxBytes}B";
+
+            // Button visibility
+            if (_hostButtonGo != null) _hostButtonGo.SetActive(!SteamLobby.IsInLobby);
+            if (_leaveButtonGo != null) _leaveButtonGo.SetActive(SteamLobby.IsInLobby);
+            if (_inviteButtonGo != null) _inviteButtonGo.SetActive(SteamLobby.IsInLobby);
+        }
+        catch { /* TMP can NRE momentarily during scene tear-down */ }
     }
 }
 
