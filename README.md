@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/img/banner.png" alt="Data Center — Multiplayer Support" width="100%">
+</p>
+
 # Data Center — Multiplayer Mod
 
 Unofficial multiplayer mod for **Data Center** (by Waseku, Steam AppID `4170200`).
