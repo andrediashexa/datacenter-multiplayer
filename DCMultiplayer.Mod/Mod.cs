@@ -26,6 +26,7 @@ public class Mod : MelonMod
         Transport.OnMessage += SwitchSnapshotSync.OnIncoming;
         Transport.OnMessage += BaseAssignmentsSync.OnIncoming;
         Transport.OnMessage += CableSnapshotSync.OnIncoming;
+        Transport.OnMessage += PatchPanelSnapshotSync.OnIncoming;
     }
 
     public override void OnSceneWasInitialized(int buildIndex, string sceneName)
@@ -51,6 +52,7 @@ public class Mod : MelonMod
         RemotePlayers.Tick(dt);
         ServerSnapshotSync.Tick(dt);
         SwitchSnapshotSync.Tick(dt);
+        PatchPanelSnapshotSync.Tick(dt);
         CableSnapshotSync.Tick(dt);
         ComputerShopBadge.RefreshText();
         var kb = Keyboard.current;

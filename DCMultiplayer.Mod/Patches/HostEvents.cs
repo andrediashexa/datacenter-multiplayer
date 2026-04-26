@@ -150,6 +150,17 @@ internal static class HE_MGM_ShuffleCustomers
     }
 }
 
+[HarmonyPatch(typeof(Il2Cpp.PatchPanel), nameof(Il2Cpp.PatchPanel.InsertedInRack))]
+internal static class HE_PatchPanel_Inserted
+{
+    static void Postfix(Il2Cpp.PatchPanel __instance)
+    {
+        if (!Authority.IsAuthoritative || !SteamLobby.IsInLobby) return;
+        EventLog.Emit($"placed patch panel {__instance.patchPanelId} (type {__instance.patchPanelType})");
+        PatchPanelSnapshotSync.BroadcastSnapshot();
+    }
+}
+
 [HarmonyPatch(typeof(Il2Cpp.NetworkMap), nameof(Il2Cpp.NetworkMap.RegisterCableConnection))]
 internal static class HE_NetworkMap_RegisterCable
 {

@@ -405,6 +405,47 @@ public class CableSnapshotTests
     }
 }
 
+public class PatchPanelSnapshotTests
+{
+    [Fact]
+    public void EmptyRoundTrips()
+    {
+        var bytes = NetMsg.WritePatchPanelSnapshot(new List<NetMsg.PatchPanelRec>());
+        Assert.True(NetMsg.TryReadPatchPanelSnapshot(bytes, out var rx));
+        Assert.Empty(rx);
+    }
+
+    [Fact]
+    public void RoundTripsRecord()
+    {
+        var src = new[]
+        {
+            new NetMsg.PatchPanelRec("pp-a", 1.5f, -2.5f, 3.5f, 90f, 1),
+            new NetMsg.PatchPanelRec("pp-b", 0f, 0f, 0f, 270f, 4),
+        };
+        var bytes = NetMsg.WritePatchPanelSnapshot(src);
+        Assert.True(NetMsg.TryReadPatchPanelSnapshot(bytes, out var rx));
+        Assert.Equal(src.Length, rx.Length);
+        for (int i = 0; i < src.Length; i++)
+        {
+            Assert.Equal(src[i].PanelId, rx[i].PanelId);
+            Assert.Equal(src[i].X, rx[i].X);
+            Assert.Equal(src[i].Y, rx[i].Y);
+            Assert.Equal(src[i].Z, rx[i].Z);
+            Assert.Equal(src[i].Yaw, rx[i].Yaw);
+            Assert.Equal(src[i].PanelType, rx[i].PanelType);
+        }
+    }
+
+    [Fact]
+    public void RejectsWrongType()
+    {
+        var bytes = NetMsg.WritePatchPanelSnapshot(new[] { new NetMsg.PatchPanelRec("a", 0, 0, 0, 0, 0) });
+        bytes[0] = 0;
+        Assert.False(NetMsg.TryReadPatchPanelSnapshot(bytes, out _));
+    }
+}
+
 public class TypeByteUniquenessTest
 {
     // If two messages share a type byte, OnIncoming dispatch can't tell
@@ -421,5 +462,6 @@ public class TypeByteUniquenessTest
         Assert.True(seen.Add(NetMsg.MsgBaseAssignments));
         Assert.True(seen.Add(NetMsg.MsgSwitchSnapshot));
         Assert.True(seen.Add(NetMsg.MsgCableSnapshot));
+        Assert.True(seen.Add(NetMsg.MsgPatchPanelSnapshot));
     }
 }

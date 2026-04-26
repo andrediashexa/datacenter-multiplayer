@@ -15,6 +15,7 @@ internal static class NetMsg
     public const byte MsgBaseAssignments = 0x60;
     public const byte MsgSwitchSnapshot = 0x70;
     public const byte MsgCableSnapshot = 0x80;
+    public const byte MsgPatchPanelSnapshot = 0x90;
 
     // Layout for MsgPlayerPose (21 bytes total):
     //   [0]      byte    type = 0x10
@@ -377,6 +378,78 @@ internal static class NetMsg
             if (pos + bLen > buf.Length) return false;
             string b = System.Text.Encoding.UTF8.GetString(buf.Slice(pos, bLen)); pos += bLen;
             arr[i] = new CableRec(id, a, b);
+        }
+        recs = arr;
+        return true;
+    }
+
+    // Patch panel record — same shape as SwitchRec (no on/off; patch
+    // panels are passive cable terminators).
+    public readonly struct PatchPanelRec
+    {
+        public readonly string PanelId;
+        public readonly float X, Y, Z;
+        public readonly float Yaw;
+        public readonly int PanelType;
+        public PatchPanelRec(string id, float x, float y, float z, float yaw, int type)
+        { PanelId = id; X = x; Y = y; Z = z; Yaw = yaw; PanelType = type; }
+    }
+
+    // Layout for MsgPatchPanelSnapshot:
+    //   [0]      byte    type = 0x90
+    //   [1..2]   uint16  record count
+    //   [3..]    per record:
+    //              byte    idLen
+    //              bytes   id (UTF-8)
+    //              float32 x, y, z, yaw     (16 B)
+    //              int32   panelType        (4 B)
+    public static byte[] WritePatchPanelSnapshot(System.Collections.Generic.IList<PatchPanelRec> recs)
+    {
+        int total = 3;
+        var idBytes = new byte[recs.Count][];
+        for (int i = 0; i < recs.Count; i++)
+        {
+            idBytes[i] = System.Text.Encoding.UTF8.GetBytes(recs[i].PanelId ?? "");
+            if (idBytes[i].Length > 255) throw new System.ArgumentException("panelId too long");
+            total += 1 + idBytes[i].Length + 16 + 4;
+        }
+        var buf = new byte[total];
+        buf[0] = MsgPatchPanelSnapshot;
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(1, 2), (ushort)recs.Count);
+        int pos = 3;
+        for (int i = 0; i < recs.Count; i++)
+        {
+            var r = recs[i];
+            buf[pos++] = (byte)idBytes[i].Length;
+            idBytes[i].CopyTo(buf, pos); pos += idBytes[i].Length;
+            BinaryPrimitives.WriteSingleLittleEndian(buf.AsSpan(pos, 4), r.X); pos += 4;
+            BinaryPrimitives.WriteSingleLittleEndian(buf.AsSpan(pos, 4), r.Y); pos += 4;
+            BinaryPrimitives.WriteSingleLittleEndian(buf.AsSpan(pos, 4), r.Z); pos += 4;
+            BinaryPrimitives.WriteSingleLittleEndian(buf.AsSpan(pos, 4), r.Yaw); pos += 4;
+            BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(pos, 4), r.PanelType); pos += 4;
+        }
+        return buf;
+    }
+
+    public static bool TryReadPatchPanelSnapshot(ReadOnlySpan<byte> buf, out PatchPanelRec[] recs)
+    {
+        recs = null;
+        if (buf.Length < 3 || buf[0] != MsgPatchPanelSnapshot) return false;
+        int count = BinaryPrimitives.ReadUInt16LittleEndian(buf.Slice(1, 2));
+        var arr = new PatchPanelRec[count];
+        int pos = 3;
+        for (int i = 0; i < count; i++)
+        {
+            if (pos >= buf.Length) return false;
+            int idLen = buf[pos++];
+            if (pos + idLen + 16 + 4 > buf.Length) return false;
+            string id = System.Text.Encoding.UTF8.GetString(buf.Slice(pos, idLen)); pos += idLen;
+            float x = BinaryPrimitives.ReadSingleLittleEndian(buf.Slice(pos, 4)); pos += 4;
+            float y = BinaryPrimitives.ReadSingleLittleEndian(buf.Slice(pos, 4)); pos += 4;
+            float z = BinaryPrimitives.ReadSingleLittleEndian(buf.Slice(pos, 4)); pos += 4;
+            float yaw = BinaryPrimitives.ReadSingleLittleEndian(buf.Slice(pos, 4)); pos += 4;
+            int type = BinaryPrimitives.ReadInt32LittleEndian(buf.Slice(pos, 4)); pos += 4;
+            arr[i] = new PatchPanelRec(id, x, y, z, yaw, type);
         }
         recs = arr;
         return true;

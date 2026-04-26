@@ -165,7 +165,8 @@ internal static class CableSnapshotSync
         if (string.IsNullOrEmpty(id)) { pos = default; return false; }
         if (ServerSnapshotSync.TryGetPosition(id, out pos)) return true;
         if (SwitchSnapshotSync.TryGetPosition(id, out pos)) return true;
-        // Patch panels and customer bases come later — for now, unresolved.
+        if (PatchPanelSnapshotSync.TryGetPosition(id, out pos)) return true;
+        // Customer bases use int ids and come later — for now, unresolved.
         pos = default;
         return false;
     }
