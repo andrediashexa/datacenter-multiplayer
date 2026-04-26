@@ -23,58 +23,132 @@ Developed by **[André Dias](https://github.com/andrediashexa)**.
 > The mod is under active development and **not feature-complete**. Wire formats,
 > hotkeys, and on-disk layout may change between any two versions before `0.1`.
 > Both peers must run the **exact same** version — joining a host on a different
-> mod version is detected and surfaced as a banner in the HUD, but full
-> compatibility is not guaranteed.
->
-> Lobby + transport + transform / economy / customer-pool / server-placement
-> replication is validated end-to-end with two real Steam users. Cables,
-> switches, patch panels, customer-base assignments, and client save
-> suppression are **not** implemented yet — see "What's replicated / what
-> isn't" below.
+> mod version is detected and surfaced as a banner in the in-game lobby panel,
+> but full compatibility is not guaranteed.
 
 ## What's replicated (host → peers)
+
+The "see the host's data center" picture is complete on the read-only side.
+A joining client gets the full visual + identity state of the host's world
+without their own save loaded:
 
 - **Steam lobby** (FriendsOnly, max 4 members) with create / join / leave /
   invite-overlay flows. Host advertises lobby metadata (`dcmp_version`,
   `dcmp_host_name`, `dcmp_workshop`); peers auto-accept session requests
   from lobby members. Joining client warns when the host's mod version or
-  Workshop subscription set differs from its own (banner in HUD + log).
+  Workshop subscription set differs from its own (banner inside the in-game
+  Multiplayer panel + log).
 - **P2P transport** over `SteamNetworkingMessages` on three channels
-  (control, state, event). Reliable + unreliable send paths, RX/TX stats
-  in HUD. `F5` toggles a debug loopback that also dispatches `Broadcast`
-  to local handlers for solo round-trip testing.
+  (control / state / event). Reliable + unreliable send paths, RX/TX stats
+  shown in the in-game panel. `F5` toggles a debug loopback that also
+  dispatches `Broadcast` to local handlers for solo round-trip testing.
 - **Remote player avatars** — coloured capsule per peer at their world-space
-  position, smoothed at 20 Hz. `F7` warps you to the first remote peer.
+  position, smoothed at 20 Hz, with a TextMeshPro nameplate that billboards
+  toward the local camera. `F7` warps you to the first remote peer.
 - **Authority model** — `Networking/Authority.cs` is the single source of
   truth for "am I the authoritative peer". Harmony patches in
   `Patches/ClientSuppression.cs` block AutoSave, `ShuffleAvailableCustomers`,
   and Player money/XP/reputation updates on non-host peers so the
   simulation can't run in parallel. `F6` toggles `ForceClient` for solo
   testing of the suppression path.
+- **Client save suppression** (opt-in via `F4`) — when joining as client,
+  `SaveSystem.LoadGame`'s output gets its world-state portion (network,
+  racks, items, technicians, mods) replaced with empty containers so the
+  scene loads geometry-only and waits to be populated by host snapshots.
+  `playerData` and `loadedScenes` are kept so the player still spawns.
 - **Economy sync** — host broadcasts `(money, xp, reputation)` at 1 Hz,
   client writes the values directly. Combined with the suppression
   patches, client numbers track the host instead of drifting or freezing.
 - **Customer pool sync** — `MainGameManager.availableCustomerIndices` is
   pushed to clients on join, on every host shuffle, and on every customer
   choice. Clients mirror the same set of cards in their customer-choice
-  canvas. Both peers share the same `customerItems` source array
-  (deterministic data), so an int list alone is enough to reproduce the
-  visible pool.
+  canvas.
+- **Customer base assignments** — `(customerBaseID, customerID)` pairs from
+  `NetworkMap.customerBases`, applied on the client by writing the base's
+  `customerID` and `customerItem` directly. Combined with the pool sync,
+  client and host see the same customers in the same bases.
+- **Server placements** — `NetworkMap.servers` ghosted as coloured cube
+  primitives at the host's world-space position, hue derived from
+  ServerID hash, brightness reflecting on/off, broken servers tinted
+  red. Re-broadcast on every PowerButton / ServerInsertedInRack /
+  ItIsBroken / RepairDevice / SetIP / UpdateAppID / UpdateCustomer
+  postfix.
+- **Switch placements** — same pattern as servers but slimmer ghosts in a
+  green hue band so they're visually distinct.
+- **Patch panel placements** — discovered via
+  `Object.FindObjectsOfType<PatchPanel>` (no NetworkMap registry exists
+  for them). Yellow-orange ghost band.
+- **Cable connections** — `NetworkMap.cableConnections` shipped as
+  identity-only `(cableId, endpointA, endpointB)` records. Client renders
+  each as a `LineRenderer` between whatever ghost positions it currently
+  has for the endpoints, refreshed every frame; cables whose endpoints
+  aren't yet visible (e.g. customer-base terminations) hide themselves
+  rather than dangle.
 - **Cross-peer event log** — host's significant actions (server power /
-  place / break / repair, switch power / place, customer chosen) emit
-  human-readable events that show up on every peer's HUD as a notification
-  stack with timestamps.
+  place / break / repair, switch power / place / break / repair, patch
+  panel place, customer chosen, cable connect / disconnect) emit
+  human-readable events that show up on every peer's in-game panel.
+- **Action intents** (client → host) — `MsgIntent` envelope with subtype
+  byte and variable payload, delivered reliably on the event channel.
+  Host validates `Authority.IsAuthoritative` then applies. Current
+  subtypes:
+    - `IntentRefresh` — re-broadcast every snapshot. Wired to a Refresh
+      button on the lobby panel for manual resync.
+    - `IntentToggleServerPower(serverId)` — host calls
+      `Server.PowerButton(!isOn)`; the existing Harmony postfix on
+      PowerButton re-broadcasts the server snapshot.
+    - `IntentToggleSwitchPower(switchId)` — same flow with `GetSwitchById`.
+- **In-game lobby UI** — there is no longer an IMGUI overlay. The lobby
+  state lives on the in-game ComputerShop terminal: the menu grid gets a
+  cloned "Multiplayer" button alongside Shop / Network Map / Asset
+  Management / Balance Sheet / Hire; clicking it swaps the screen to a
+  panel with the lobby ID, member list, RX/TX stats, version + workshop
+  mismatch banners, and action buttons (Host Lobby / Leave Lobby /
+  Invite / Copy ID / Ping / Refresh) that toggle visibility based on
+  lobby state. Back button mirrors the existing secondary screens.
+
+## Wire format
+
+Every cross-peer message starts with a one-byte type. Channels are
+[`Transport.cs`]: 0 = control (PING/PONG, debug text), 1 = state
+(positions, ticks — unreliable OK), 2 = event (snapshots, intents —
+reliable only).
+
+| Type   | Message | Channel | Direction |
+|--------|---------|---------|-----------|
+| `0x10` | `PlayerPose` (xyz + yaw + pitch) | state | every peer → every peer @ 20 Hz |
+| `0x20` | `EconomyTick` (money + xp + rep) | state | host → peers @ 1 Hz |
+| `0x30` | `EventText` (UTF-8 line) | event | sender → peers, on demand |
+| `0x40` | `CustomerPool` (Int32 list) | event | host → peers, on join + on shuffle |
+| `0x50` | `ServerSnapshot` (records) | event | host → peers, on join + on power/place/break/repair |
+| `0x60` | `BaseAssignments` (pairs) | event | host → peers, on join + on customer chosen |
+| `0x70` | `SwitchSnapshot` (records) | event | host → peers, on join + on power/place/break/repair |
+| `0x80` | `CableSnapshot` (records) | event | host → peers, on join + on connect/disconnect |
+| `0x90` | `PatchPanelSnapshot` (records) | event | host → peers, on join + on place |
+| `0xA0` | `Intent` (subtype + payload) | event | client → host |
+
+Intent subtypes (after the `0xA0` type byte):
+
+| Subtype | Action | Payload |
+|---------|--------|---------|
+| `0x01` | `Refresh` — re-broadcast every snapshot | none |
+| `0x02` | `ToggleServerPower` | byte len + UTF-8 serverId |
+| `0x03` | `ToggleSwitchPower` | byte len + UTF-8 switchId |
+
+`Tests/DCMultiplayer.Mod.Tests/NetMsgTests.cs` round-trips every
+serializer with edge values and runs in CI on every push/PR.
 
 ## What's *not* replicated yet
 
-- **Entity placements** (servers, switches, patch panels, cables, racks).
-  Each peer still loads their own save, so the world geometry is whatever
-  was on disk. The capsule shows where the host *would* be standing in
-  their world, mapped onto your coordinates.
-- **Customer base assignments** — which customer is hosted in which base.
-  The pool is in sync, but the chosen-card-to-base step isn't replicated.
-- **Client-side intents.** Clients can't act on the host's world — buying,
-  toggling power, connecting cables on a client doesn't propagate back.
+- **Client-side intents beyond power toggle** — buying items, connecting
+  cables, choosing customers from the canvas, hiring technicians, all
+  still local-only on a client. The intent envelope is in place; each
+  new action just needs a subtype + apply method.
+- **Per-app subnet / VLAN / accumulated-speed state** on customer bases
+  isn't yet shipped — clients see which customer is on which base, but
+  not their per-app health.
+- **Technicians** — NPCs aren't replicated. With save suppression on,
+  the client just doesn't see them.
 - **External Steam invites** (`+connect_lobby <id>` from launch args). In-
   game overlay invites work via `GameLobbyJoinRequested_t`; the launch-
   argument path isn't parsed yet.
@@ -87,30 +161,43 @@ Tools/
 │   ├─ Mod.cs                  entry point, hotkeys, OnUpdate dispatch
 │   ├─ ModInfo.cs              version + name (single source of truth)
 │   ├─ Networking/
-│   │   ├─ SteamLobby.cs       Steam Matchmaking wrapper + callbacks
-│   │   ├─ Transport.cs        SteamNetworkingMessages send/recv
-│   │   └─ Authority.cs        IsHost / IsClient / IsAuthoritative
-│   ├─ Replication/
-│   │   ├─ NetMsg.cs           wire format (PlayerPose, EconomyTick, EventText)
-│   │   ├─ PlayerSync.cs       20 Hz pose broadcast (sender)
-│   │   ├─ RemotePlayers.cs    capsule avatars (receiver)
-│   │   ├─ EconomySync.cs      1 Hz money/xp/rep broadcast + apply
-│   │   ├─ EventLog.cs         cross-peer text notifications
-│   │   └─ CustomerPoolSync.cs replicate availableCustomerIndices
-│   ├─ Networking/
 │   │   ├─ SteamLobby.cs       Matchmaking + lobby callbacks +
 │   │   │                        version/Workshop mismatch detection
 │   │   ├─ Transport.cs        SteamNetworkingMessages send/recv
 │   │   │                        (+ DebugLoopback for solo testing)
 │   │   ├─ Authority.cs        IsHost / IsClient / IsAuthoritative
+│   │   │                        (+ ForceClient and SuppressClientSave
+│   │   │                        debug toggles)
 │   │   └─ WorkshopManifest.cs enumerate StreamingAssets/Mods/workshop_*
+│   ├─ Replication/
+│   │   ├─ NetMsg.cs           wire format for every message type
+│   │   ├─ PlayerSync.cs       20 Hz local-pose broadcast (sender)
+│   │   ├─ RemotePlayers.cs    capsule avatars + nameplates (receiver)
+│   │   ├─ EconomySync.cs      1 Hz money/xp/rep broadcast + apply
+│   │   ├─ EventLog.cs         cross-peer text notifications
+│   │   ├─ CustomerPoolSync.cs replicate availableCustomerIndices
+│   │   ├─ BaseAssignmentsSync.cs   (baseId → customerId) pairs
+│   │   ├─ ServerSnapshotSync.cs    NetworkMap.servers ghosts
+│   │   ├─ SwitchSnapshotSync.cs    NetworkMap.switches ghosts
+│   │   ├─ PatchPanelSnapshotSync.cs FindObjectsOfType<PatchPanel> ghosts
+│   │   ├─ CableSnapshotSync.cs     LineRenderers between resolved endpoints
+│   │   ├─ IntentBus.cs        client → host action requests + apply
+│   │   └─ ComputerShopBadge.cs in-game lobby panel mounted on the
+│   │                             ComputerShop terminal (cloned button +
+│   │                             cloned screen + Back arrow)
 │   ├─ Patches/
 │   │   ├─ Observers.cs        read-only logging patches (debug)
-│   │   ├─ ClientSuppression.cs  prefix patches that no-op the sim on clients
-│   │   └─ HostEvents.cs       host-side patches that emit EventLog +
-│   │                           drive CustomerPoolSync.BroadcastCurrent
-│   └─ UI/Hud.cs               IMGUI overlay (status panel + event stack +
-│                                 mismatch banners + copy-id button)
+│   │   ├─ ClientSuppression.cs  prefix patches that no-op the sim on
+│   │   │                          clients (autosave, customer shuffle,
+│   │   │                          money / xp / rep updates)
+│   │   ├─ ClientSaveSuppress.cs   strips world-state from SaveData on
+│   │   │                          clients with SuppressClientSave on
+│   │   └─ HostEvents.cs       host-side postfixes that emit EventLog
+│   │                            entries and trigger the matching
+│   │                            snapshot rebroadcasts
+│   └─ UI/Hud.cs               (legacy) IMGUI overlay — kept in the repo
+│                                but no longer rendered; see
+│                                ComputerShopBadge for the live UI
 │
 ├─ DCInstaller/              single-file self-contained installer (net8.0)
 │                              embeds the built mod DLL, runs the <>O fix,
@@ -122,11 +209,12 @@ Tools/
 │                              (resolve real method signatures during dev)
 │
 ├─ Tests/DCMultiplayer.Mod.Tests/   xunit round-trip tests for NetMsg
-│                              (no game deps, runs in CI)
+│                              (no game deps, runs in CI on every push/PR)
 │
+├─ docs/img/banner.png       repo banner (used at the top of this README)
 ├─ docs/CLAUDE.md            running technical briefing — what's known about
-│                              the game's IL2CPP surface, Phase A/B/C/D plan,
-│                              gotchas, hotkeys, current status
+│                              the game's IL2CPP surface, plan, gotchas,
+│                              current status
 │
 ├─ scripts/release.ps1       cut a release: rebuild, zip, tag, push
 ├─ .github/workflows/        CI (test on push/PR, release shell on tag)
@@ -214,10 +302,15 @@ the `.zip` to that release page (drag-and-drop in the UI, or
 
 ## Hotkeys (in-game)
 
+The lobby UI lives on the in-game ComputerShop terminal under the new
+"Multiplayer" button. The hotkeys below are still wired as a fallback so
+you can drive the lobby without walking up to the computer:
+
 | Key | Action |
 |-----|--------|
+| `F4` | Toggle `Authority.SuppressClientSave` (debug — replace SaveData world-state with empty containers when joining as client) |
 | `F5` | Toggle `Transport.DebugLoopback` (debug — local round-trip dispatch) |
-| `F6` | Toggle `Authority.ForceClient` (debug — testing suppression solo) |
+| `F6` | Toggle `Authority.ForceClient` (debug — exercise the client suppression patches in a single instance) |
 | `F7` | Warp local player to the first remote avatar |
 | `F8` | Host a Friends-Only Steam lobby |
 | `F9` | Leave the current lobby |
