@@ -19,6 +19,10 @@ existing Steamworks.NET integration.
 
 Developed by **[André Dias](https://github.com/andrediashexa)**.
 
+> 📦 **Just want to play?** Follow the [installation guide](INSTALL.md).
+> The rest of this README is aimed at people building or contributing to
+> the mod.
+
 > 🚧 **This is a work in progress.**
 > The mod is under active development and **not feature-complete**. Wire formats,
 > hotkeys, and on-disk layout may change between any two versions before `0.1`.
