@@ -27,14 +27,14 @@ jobs:
         id: notes
         run: |
           tag="${GITHUB_REF##*/}"
+          # The release script annotates the tag with just the version
+          # ("v0.0.9") and relies on the commit pointed at by the tag for
+          # the actual changelog. Use that commit's full body as the
+          # release notes; strip any Co-Authored-By trailer.
           {
             echo "## $tag"
             echo
-            git tag -l --format='%(contents:body)' "$tag" | sed '/^-----BEGIN/,/^-----END/d'
-            echo
-            echo "### Latest commit"
-            echo
-            git log -1 --pretty=format:'%B' "$tag"
+            git log -1 --pretty=format:'%B' "$tag" | sed '/^Co-Authored-By:/,$d'
           } > notes.md
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
