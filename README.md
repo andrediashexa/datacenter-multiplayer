@@ -17,6 +17,8 @@ Unofficial multiplayer mod for **Data Center** (by Waseku, Steam AppID `4170200`
 Built on top of [MelonLoader](https://melonwiki.xyz/) for IL2CPP and the game's
 existing Steamworks.NET integration.
 
+Developed by **[André Dias](https://github.com/andrediashexa)**.
+
 > 🚧 **This is a work in progress.**
 > The mod is under active development and **not feature-complete**. Wire formats,
 > hotkeys, and on-disk layout may change between any two versions before `0.1`.
