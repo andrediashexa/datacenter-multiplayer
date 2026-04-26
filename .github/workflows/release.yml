@@ -38,12 +38,23 @@ jobs:
           } > notes.md
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.notes.outputs.tag }}
-          name: ${{ steps.notes.outputs.tag }}
-          body_path: notes.md
-          draft: false
-          prerelease: true
-          fail_on_unmatched_files: false
+      # Use the GH CLI directly. softprops/action-gh-release@v2 was
+      # silently no-op'ing when releases had been deleted while the tag
+      # still pointed at the same commit; the CLI's create-or-edit flow
+      # is more predictable.
+      - name: Create or update release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ steps.notes.outputs.tag }}"
+          if gh release view "$tag" --json tagName >/dev/null 2>&1; then
+            gh release edit "$tag" \
+              --title "$tag" \
+              --notes-file notes.md \
+              --prerelease
+          else
+            gh release create "$tag" \
+              --title "$tag" \
+              --notes-file notes.md \
+              --prerelease
+          fi
