@@ -28,7 +28,8 @@ internal static class ComputerShopBadge
     static TextMeshProUGUI _statusText;
     static TextMeshProUGUI _membersText;
     static TextMeshProUGUI _netText;
-    static GameObject _hostButtonGo, _leaveButtonGo, _inviteButtonGo;
+    static GameObject _hostButtonGo, _leaveButtonGo, _inviteButtonGo, _copyIdButtonGo, _pingButtonGo;
+    static TextMeshProUGUI _mismatchText;
     static Transform _iconButtonTmpl; // a Button Grid icon we clone for actions
 
     public static void Plant(Il2Cpp.ComputerShop shop)
@@ -166,7 +167,9 @@ internal static class ComputerShopBadge
             if (existingTmp != null)
             {
                 _headerText = SpawnText(existingTmp, clone.transform, "DCMP_Header", "DC MULTIPLAYER", 56, +260f);
-                _statusText = SpawnText(existingTmp, clone.transform, "DCMP_Status", "idle — F8 to host", 32, +160f);
+                _statusText = SpawnText(existingTmp, clone.transform, "DCMP_Status", "idle", 32, +160f);
+                _mismatchText = SpawnText(existingTmp, clone.transform, "DCMP_Mismatch", "", 22, +110f);
+                if (_mismatchText != null) _mismatchText.color = new Color(1f, 0.4f, 0.3f);
                 _membersText = SpawnText(existingTmp, clone.transform, "DCMP_Members", "", 24, +20f);
                 _netText = SpawnText(existingTmp, clone.transform, "DCMP_Net", "", 18, -100f);
             }
@@ -197,6 +200,8 @@ internal static class ComputerShopBadge
                     _hostButtonGo = SpawnActionButton(actionGrid.transform, "Host Lobby", () => SteamLobby.HostLobby());
                     _leaveButtonGo = SpawnActionButton(actionGrid.transform, "Leave Lobby", () => SteamLobby.Leave());
                     _inviteButtonGo = SpawnActionButton(actionGrid.transform, "Invite", () => SteamLobby.InviteFriendsOverlay());
+                    _copyIdButtonGo = SpawnActionButton(actionGrid.transform, "Copy ID", CopyLobbyIdToClipboard);
+                    _pingButtonGo = SpawnActionButton(actionGrid.transform, "Ping", BroadcastPing);
                 }
                 else
                 {
@@ -254,7 +259,7 @@ internal static class ComputerShopBadge
         {
             Log.Error($"BuildPanel failed: {ex.GetType().Name}: {ex.Message}");
             if (_panel != null) try { Object.Destroy(_panel); } catch { }
-            _panel = null; _headerText = null; _statusText = null; _membersText = null; _netText = null;
+            _panel = null; _headerText = null; _statusText = null; _membersText = null; _netText = null; _mismatchText = null;
         }
     }
 
@@ -346,6 +351,26 @@ internal static class ComputerShopBadge
             }
         }
         return fallback;
+    }
+
+    static void CopyLobbyIdToClipboard()
+    {
+        if (!SteamLobby.IsInLobby) return;
+        try
+        {
+            GUIUtility.systemCopyBuffer = SteamLobby.Current.m_SteamID.ToString();
+            EventLog.Emit("copied lobby id to clipboard");
+        }
+        catch (System.Exception ex) { Log.Warning($"copy id failed: {ex.Message}"); }
+    }
+
+    static void BroadcastPing()
+    {
+        if (!SteamLobby.IsInLobby) { Log.Msg("ping: not in lobby"); return; }
+        string text = $"PING from {Il2CppSteamworks.SteamFriends.GetPersonaName()} @ {System.DateTime.Now:HH:mm:ss.fff}";
+        var bytes = System.Text.Encoding.UTF8.GetBytes(text);
+        Transport.Broadcast(Transport.ChControl, bytes);
+        EventLog.Emit($"-> {text}");
     }
 
     static void OnBackClicked()
@@ -447,10 +472,27 @@ internal static class ComputerShopBadge
             if (_netText != null)
                 _netText.text = $"net  rx {Transport.LastRxPackets}p / {Transport.LastRxBytes}B    tx {Transport.LastTxPackets}p / {Transport.LastTxBytes}B";
 
-            // Button visibility
+            // Button visibility — the action grid auto-reflows when
+            // children toggle, so we don't have to reposition manually.
             if (_hostButtonGo != null) _hostButtonGo.SetActive(!SteamLobby.IsInLobby);
             if (_leaveButtonGo != null) _leaveButtonGo.SetActive(SteamLobby.IsInLobby);
             if (_inviteButtonGo != null) _inviteButtonGo.SetActive(SteamLobby.IsInLobby);
+            if (_copyIdButtonGo != null) _copyIdButtonGo.SetActive(SteamLobby.IsInLobby);
+            if (_pingButtonGo != null) _pingButtonGo.SetActive(SteamLobby.IsInLobby);
+
+            // Mismatch banner — surface what was previously a HUD-only
+            // visual in v0.0.7 (the lobby version + workshop diff is set
+            // by SteamLobby.OnLobbyEntered when joining a host on a
+            // different version or with a different workshop manifest).
+            if (_mismatchText != null)
+            {
+                var lines = new System.Collections.Generic.List<string>();
+                if (!string.IsNullOrEmpty(SteamLobby.VersionMismatch))
+                    lines.Add($"!! version mismatch — {SteamLobby.VersionMismatch}");
+                if (!string.IsNullOrEmpty(SteamLobby.WorkshopMismatch))
+                    lines.Add($"!! workshop mismatch — {SteamLobby.WorkshopMismatch}");
+                _mismatchText.text = string.Join("\n", lines);
+            }
         }
         catch { /* TMP can NRE momentarily during scene tear-down */ }
     }
