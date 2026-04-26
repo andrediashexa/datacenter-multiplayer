@@ -24,6 +24,7 @@ public class Mod : MelonMod
         Transport.OnMessage += EventLog.OnIncoming;
         Transport.OnMessage += CustomerPoolSync.OnIncoming;
         Transport.OnMessage += ServerSnapshotSync.OnIncoming;
+        Transport.OnMessage += BaseAssignmentsSync.OnIncoming;
     }
 
     public override void OnSceneWasInitialized(int buildIndex, string sceneName)

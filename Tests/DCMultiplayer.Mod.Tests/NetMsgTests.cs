@@ -236,6 +236,55 @@ public class ServerSnapshotTests
     }
 }
 
+public class BaseAssignmentsTests
+{
+    [Fact]
+    public void EmptyRoundTrips()
+    {
+        var bytes = NetMsg.WriteBaseAssignments(new List<(int, int)>());
+        Assert.True(NetMsg.TryReadBaseAssignments(bytes, out var rx));
+        Assert.Empty(rx);
+    }
+
+    [Fact]
+    public void RoundTripsAllPairs()
+    {
+        var pairs = new List<(int, int)>
+        {
+            (0, -1),       // unassigned
+            (1, 42),
+            (2, int.MaxValue),
+            (3, 0),
+            (1000, -1),
+        };
+        var bytes = NetMsg.WriteBaseAssignments(pairs);
+        Assert.True(NetMsg.TryReadBaseAssignments(bytes, out var rx));
+        Assert.Equal(pairs.Count, rx.Length);
+        for (int i = 0; i < pairs.Count; i++)
+        {
+            Assert.Equal(pairs[i].Item1, rx[i].baseId);
+            Assert.Equal(pairs[i].Item2, rx[i].customerId);
+        }
+    }
+
+    [Fact]
+    public void RejectsTruncated()
+    {
+        var bytes = NetMsg.WriteBaseAssignments(new List<(int, int)> { (1, 2), (3, 4) });
+        var trunc = new byte[bytes.Length - 4];
+        Buffer.BlockCopy(bytes, 0, trunc, 0, trunc.Length);
+        Assert.False(NetMsg.TryReadBaseAssignments(trunc, out _));
+    }
+
+    [Fact]
+    public void RejectsWrongType()
+    {
+        var bytes = NetMsg.WriteBaseAssignments(new List<(int, int)> { (1, 2) });
+        bytes[0] = 0;
+        Assert.False(NetMsg.TryReadBaseAssignments(bytes, out _));
+    }
+}
+
 public class TypeByteUniquenessTest
 {
     // If two messages share a type byte, OnIncoming dispatch can't tell
@@ -249,5 +298,6 @@ public class TypeByteUniquenessTest
         Assert.True(seen.Add(NetMsg.MsgEventText));
         Assert.True(seen.Add(NetMsg.MsgCustomerPool));
         Assert.True(seen.Add(NetMsg.MsgServerSnapshot));
+        Assert.True(seen.Add(NetMsg.MsgBaseAssignments));
     }
 }

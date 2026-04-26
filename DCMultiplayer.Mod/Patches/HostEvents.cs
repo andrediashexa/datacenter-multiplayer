@@ -110,6 +110,7 @@ internal static class HE_MGM_CustomerChosen
         if (!Authority.IsAuthoritative || !SteamLobby.IsInLobby) return;
         EventLog.Emit($"chose customer card #{_cardID}");
         CustomerPoolSync.BroadcastCurrent();
+        BaseAssignmentsSync.BroadcastCurrent();
     }
 }
 

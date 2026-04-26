@@ -12,6 +12,7 @@ internal static class NetMsg
     public const byte MsgEventText = 0x30;
     public const byte MsgCustomerPool = 0x40;
     public const byte MsgServerSnapshot = 0x50;
+    public const byte MsgBaseAssignments = 0x60;
 
     // Layout for MsgPlayerPose (21 bytes total):
     //   [0]      byte    type = 0x10
@@ -188,6 +189,43 @@ internal static class NetMsg
             ipBytes[i].CopyTo(buf, pos); pos += ipBytes[i].Length;
         }
         return buf;
+    }
+
+    // Layout for MsgBaseAssignments:
+    //   [0]      byte    type = 0x60
+    //   [1..2]   uint16  pair count
+    //   [3..]    for each pair: int32 baseId, int32 customerId  (8 B each;
+    //            customerId = -1 means base currently has no customer)
+    public static byte[] WriteBaseAssignments(System.Collections.Generic.IList<(int baseId, int customerId)> pairs)
+    {
+        if (pairs.Count > ushort.MaxValue) throw new System.ArgumentException("too many pairs", nameof(pairs));
+        var buf = new byte[3 + pairs.Count * 8];
+        buf[0] = MsgBaseAssignments;
+        BinaryPrimitives.WriteUInt16LittleEndian(buf.AsSpan(1, 2), (ushort)pairs.Count);
+        int pos = 3;
+        for (int i = 0; i < pairs.Count; i++)
+        {
+            BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(pos, 4), pairs[i].baseId);     pos += 4;
+            BinaryPrimitives.WriteInt32LittleEndian(buf.AsSpan(pos, 4), pairs[i].customerId); pos += 4;
+        }
+        return buf;
+    }
+
+    public static bool TryReadBaseAssignments(ReadOnlySpan<byte> buf, out (int baseId, int customerId)[] pairs)
+    {
+        pairs = null;
+        if (buf.Length < 3 || buf[0] != MsgBaseAssignments) return false;
+        ushort count = BinaryPrimitives.ReadUInt16LittleEndian(buf.Slice(1, 2));
+        if (buf.Length < 3 + count * 8) return false;
+        var arr = new (int, int)[count];
+        for (int i = 0; i < count; i++)
+        {
+            int b = BinaryPrimitives.ReadInt32LittleEndian(buf.Slice(3 + i * 8, 4));
+            int c = BinaryPrimitives.ReadInt32LittleEndian(buf.Slice(7 + i * 8, 4));
+            arr[i] = (b, c);
+        }
+        pairs = arr;
+        return true;
     }
 
     public static bool TryReadServerSnapshot(ReadOnlySpan<byte> buf, out ServerRec[] recs)
