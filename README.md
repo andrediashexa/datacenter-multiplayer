@@ -300,23 +300,35 @@ notes pulled from the tag annotation and the latest commit body. Upload
 the `.zip` to that release page (drag-and-drop in the UI, or
 `gh release upload v0.0.9 dist/DCMultiplayer-v0.0.9-win-x64.zip`).
 
-## Hotkeys (in-game)
+## In-game controls
 
-The lobby UI lives on the in-game ComputerShop terminal under the new
-"Multiplayer" button. The hotkeys below are still wired as a fallback so
-you can drive the lobby without walking up to the computer:
+The mod has no keyboard shortcuts. Every interaction lives on the **in-game
+computer**: walk up to a ComputerShop terminal, click the **Multiplayer**
+button alongside Shop / Network Map / Asset Management / Balance Sheet /
+Hire, and use the panel that appears.
 
-| Key | Action |
-|-----|--------|
-| `F4` | Toggle `Authority.SuppressClientSave` (debug — replace SaveData world-state with empty containers when joining as client) |
-| `F5` | Toggle `Transport.DebugLoopback` (debug — local round-trip dispatch) |
-| `F6` | Toggle `Authority.ForceClient` (debug — exercise the client suppression patches in a single instance) |
-| `F7` | Warp local player to the first remote avatar |
-| `F8` | Host a Friends-Only Steam lobby |
-| `F9` | Leave the current lobby |
-| `F10` | Dump member list to the MelonLoader console |
-| `F11` | Open Steam's Invite Friends overlay |
-| `F12` | Broadcast a `PING` (debug round-trip test) |
+The panel surfaces, depending on lobby state:
+
+- Lobby ID + member list + role (host / client) + RX-TX byte counters.
+- Version and Workshop mismatch banners when joining a host on a different
+  build or a different set of subscribed Workshop content.
+- **Host Lobby** — create a Friends-Only Steam lobby (visible when idle).
+- **Leave Lobby** — leave the current lobby (visible when in lobby).
+- **Invite** — open Steam's invite overlay.
+- **Copy ID** — write the lobby's CSteamID to the system clipboard.
+- **Ping** — debug round-trip test, broadcasts a PING that peers reply to.
+- **Refresh** — request a snapshot resync from the host.
+- **Warp to Peer** — teleport your character next to the first remote
+  avatar (visible when at least one peer's pose has been received).
+
+The Back arrow in the top-right of the panel returns to the computer's
+main menu, matching the existing Balance Sheet / Asset Management screens.
+
+The few internal debug flags (`Authority.ForceClient`,
+`Transport.DebugLoopback`, `Authority.SuppressClientSave`) are still
+present in the code as static booleans for future experimentation, but
+they are no longer bound to any input — change them at the source if you
+need to flip them.
 
 ## Credits / third-party
 

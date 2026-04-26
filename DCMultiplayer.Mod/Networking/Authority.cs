@@ -6,15 +6,21 @@ namespace DCMultiplayer.Networking;
 internal static class Authority
 {
     /// <summary>Debug toggle — pretend to be a client even when alone, so the
-    /// suppression patches can be exercised in a single instance.</summary>
+    /// suppression patches can be exercised in a single instance. Not bound
+    /// to any input; flip at the source (or via reflection from another
+    /// mod) when needed.</summary>
+#pragma warning disable CS0649
     public static bool ForceClient;
+#pragma warning restore CS0649
 
     /// <summary>When ON, joining as client triggers SaveSystem.LoadGame
     /// post-processing that empties the world-state portion of the SaveData
     /// (network, racks, items, technicians, mods) so the client's data
     /// center loads scenes-only and waits to be populated by host snapshots.
-    /// Off by default — opt-in until validated. F4 toggles.</summary>
+    /// Off by default — opt-in until validated. Flip at the source.</summary>
+#pragma warning disable CS0649
     public static bool SuppressClientSave;
+#pragma warning restore CS0649
 
     public static bool IsHost => !ForceClient && SteamLobby.IsHost;
 

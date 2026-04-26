@@ -28,7 +28,7 @@ internal static class ComputerShopBadge
     static TextMeshProUGUI _statusText;
     static TextMeshProUGUI _membersText;
     static TextMeshProUGUI _netText;
-    static GameObject _hostButtonGo, _leaveButtonGo, _inviteButtonGo, _copyIdButtonGo, _pingButtonGo, _refreshButtonGo;
+    static GameObject _hostButtonGo, _leaveButtonGo, _inviteButtonGo, _copyIdButtonGo, _pingButtonGo, _refreshButtonGo, _warpButtonGo;
     static TextMeshProUGUI _mismatchText;
     static Transform _iconButtonTmpl; // a Button Grid icon we clone for actions
 
@@ -203,6 +203,7 @@ internal static class ComputerShopBadge
                     _copyIdButtonGo = SpawnActionButton(actionGrid.transform, "Copy ID", CopyLobbyIdToClipboard);
                     _pingButtonGo = SpawnActionButton(actionGrid.transform, "Ping", BroadcastPing);
                     _refreshButtonGo = SpawnActionButton(actionGrid.transform, "Refresh", IntentBus.RequestRefresh);
+                    _warpButtonGo = SpawnActionButton(actionGrid.transform, "Warp to Peer", WarpToFirstAvatar);
                 }
                 else
                 {
@@ -354,6 +355,18 @@ internal static class ComputerShopBadge
         return fallback;
     }
 
+    static void WarpToFirstAvatar()
+    {
+        var pos = RemotePlayers.FirstAvatarPosition();
+        if (!pos.HasValue) { Log.Msg("warp: no remote avatar"); return; }
+        var pm = Il2Cpp.PlayerManager.instance;
+        var p = pm?.playerClass;
+        if (p == null) { Log.Msg("warp: no local Player"); return; }
+        var target = pos.Value + new Vector3(0f, 0.5f, -2f);
+        p.WarpPlayer(target, Quaternion.identity);
+        EventLog.Emit($"warped to first remote avatar at {target}");
+    }
+
     static void CopyLobbyIdToClipboard()
     {
         if (!SteamLobby.IsInLobby) return;
@@ -481,6 +494,7 @@ internal static class ComputerShopBadge
             if (_copyIdButtonGo != null) _copyIdButtonGo.SetActive(SteamLobby.IsInLobby);
             if (_pingButtonGo != null) _pingButtonGo.SetActive(SteamLobby.IsInLobby);
             if (_refreshButtonGo != null) _refreshButtonGo.SetActive(SteamLobby.IsInLobby);
+            if (_warpButtonGo != null) _warpButtonGo.SetActive(SteamLobby.IsInLobby && RemotePlayers.Count > 0);
 
             // Mismatch banner — surface what was previously a HUD-only
             // visual in v0.0.7 (the lobby version + workshop diff is set
